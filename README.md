@@ -10,4 +10,4 @@ scene is something you would actually show someone.
 
 Prototype work that led here lives in `~/dragon16` and is historical.
 
-See `docs/` once the design document lands.
+Design (reviewed): [`docs/design.md`](docs/design.md).
