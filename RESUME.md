@@ -1,8 +1,8 @@
 # Resume here
 
-**Repo:** `/Users/wundram/dev/splite` (`main`, clean)  
-**Next work:** **PR1** — Godot 4.7 project + empty Splite plugin skeleton.  
-**Do not implement past PR1 unless the user asks.**
+**Repo:** `/Users/wundram/dev/splite` (`main`; PR1–PR4 are uncommitted local work)  
+**Next work:** **PR5** — player actor, stairs, presentation smoke.  
+**Do not implement past PR5 unless the user asks.**
 
 Open this folder as the workspace. Read `docs/design.md` before writing code. That document is the contract (reviewed, 4 rounds). This file is only the handoff.
 
@@ -10,69 +10,71 @@ Open this folder as the workspace. Read `docs/design.md` before writing code. Th
 
 | Path | Role |
 |---|---|
-| **This repo** | The engine. Almost empty on purpose: README + `docs/design.md` only. |
-| `~/dragon16` | Historical **prototype**. Runnable garden + tour. **Read-only.** Do not add features there. Port *contracts*, do not copy the clover data model. |
-
-Run the prototype if you need to see the old demo:
+| **This repo** | The engine. Host + resources + renderer + world/camera. No actor yet. |
+| `~/dragon16` | Historical **prototype**. Read-only. Port *contracts*. |
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --path ~/dragon16
+/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite
+/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite --headless --script res://tests/test_cloud.gd
+/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite --headless --script res://tests/test_world.gd
+/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite res://demos/_scratch/grid.tscn
 ```
 
-Tour: `Godot --path ~/dragon16 res://demos/tour/tour.tscn`  
 Godot is `4.7.1` at `/Applications/Godot.app`.
 
 ## Product locks (do not reopen)
 
-- Plugin **code name is Splite.** Addon path `addons/splite`. Types stay `SplatCloud` / `SplatWorld` / `Splite` / `SplatBatch`.
-- **One garden scene first.** No forest / temple / cathedral / neon.
-- Look: tactile / representational (Link’s Awakening plastic + E33 paint), not photoreal.
-- Camera: near-top-down, **perspective**, ~10° SW tilt (height 6.6, SW 0.82, FOV 60°). Not ortho.
-- Color is **albedo**; day/night + lantern later (PR9).
-- Fitted assets: shop **Poly Haven CC0 first**. Fitted **player walk cycle** is the showable *intent*; proc chibi is the late-fit fallback. Training is **remote CUDA**; M1 Pro does not run splatfacto. Showable garden is **not** gated on the tree or fitted player.
-- Dragon Rescue is a future consumer, not this repo’s name.
+- Plugin **code name is Splite.** Types stay `SplatCloud` / `SplatWorld` / `Splite` / `SplatBatch`.
+- Camera: near-top-down, **perspective**, ~10° **SW** tilt (height 6.6, west 0.82 on **−X**, south 0.82, FOV 60°). `look_at(focus, Vector3(0, 0, −1))`.
+- Environment is a black void (K17). `WorldEnvironment` is **PR6**.
+- Color is **albedo**. No player yet — that is this PR.
 
-## PR1 — do this
+## PR1–PR3 — done
 
-From `docs/design.md` §PR Plan:
+Godot 4.7 host. Resources. Hybrid renderer + `demos/_scratch/one_cloud.tscn`. `test_cloud.gd` PASS.
+
+## PR4 — done (this working tree)
+
+- `SplatWorld` — typed `Cell`s, `register_defs` / `set_cell` / `set_cell_state` / `set_active_rooms` / `is_walkable` / `floor_y` / `refresh(time, delta)`. Dirty flags `_needs_static` / `_needs_dyn` / `_needs_lights`.
+- Hull meshes **only** when `TileSurface.visible`. No shadows-only hulls.
+- Static drops from `cast_model`. `_receiver_y` starts at the **same** level (tiles are the ground).
+- Frustum skip with a 2 m pad; static rebuilds when the camera’s rounded XZ cell changes.
+- `SplatCameraRig` — defaults 6.6 / 0.82 / 0.82 / 60° / near 0.20 / far 40 / DOF 0.034.
+- `plugin.gd` registers `SplatBatch`, `SplatWorld`, `SplatCameraRig`.
+- `tests/test_world.gd` PASS (walk, rooms, SEQUENCE → `next_state`, ~10° SW tilt).
+- Scratch `demos/_scratch/grid.tscn`: path ring + hybrid grass/bush + north HOUSE_IN alcove, bush drop visible. Verified in Godot.
+
+## PR5 — do this
+
+From `docs/design.md` §PR Plan and §5:
 
 **Files**
 
-- `project.godot`
-- `icon.svg` (minimal is fine)
-- `addons/splite/plugin.cfg`
-- `addons/splite/plugin.gd`
-- `addons/splite/editor/.gitkeep`
-- README: run instructions + layout table
+- `addons/splite/core/splite_actor.gd`
+- `addons/splite/dev/proc_catalog.gd` — player + a handful of one-state tiles
+- `demos/shared/garden.gd` — minimal: grass rectangle + one stair run
+- `demos/garden/garden_play.gd`
+- `demos/garden/garden.tscn` as **main scene**
 
 **Behavior**
 
-- `EditorPlugin` with **empty** `_enter_tree` / `_exit_tree` — **register zero types**. Preloading a missing script will fail to enable the addon.
-- Features string **`4.7`** (not the prototype’s `4.4`).
-- Window **1920×1200**, **black** clear `Color(0.015, 0.016, 0.020)`, Forward+, MSAA 2×, **stretch off**.
-- Main scene: a blank `Node3D`.
-- Plugin listed under `editor_plugins` and enabled.
+- WASD, 10 fps walk clip, stair interpolation (`STAIRS`, N-exit, 2-tile span, `player_level` flips at 0.5).
+- Footprint from `Splite.hitbox` (default ±0.18), not prototype magic ±0.16 / ±0.12.
+- `--shot=` / `--frames=` / `--px=` headless path ports from `~/dragon16/demos/toybox/toybox.gd`.
+- Register `SpliteActor` in `plugin.gd`.
 
-**Done when:** `/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite` opens a black window titled **Splite**.
+**Done when:** you can walk a clover slab on a black void at the new camera scale. Last PR allowed to look like the prototype.
 
-`WorldEnvironment` is **PR6**, not PR1. Clear color only.
+Port `splite_actor.gd` + `try_move` / `_update_stairs` from the prototype. Do **not** port the full garden MAPS (PR6), pale `_environment()`, or clover-as-style beyond the proc stand-in.
 
-## After PR1 (do not start unless asked)
+## After PR5 (do not start unless asked)
 
-PR2 resources → PR3 renderer → PR4 world/camera → PR5 actor → PR6 garden map → then PR7∥8∥9∥10. Pipeline PR11a/b/c is off the garden critical path. PR12 is the showable demo + tour.
-
-Full sequence and file lists: `docs/design.md` → **PR Plan**. Key decisions: **K1–K18**.
-
-## Prototype vs this repo
-
-Port from `~/dragon16` only what the design says to port (camera contract, room set, 4pm drop *math*, hybrid mesh-writes / splat-tests, distortion idea, `--shot=` harness later).
-
-Do **not** port: `SplatTile` as a single-state Resource, untyped `cells` dict, clover catalog as production, hardcoded `try_interact`, pale `_environment()` / green ground plane, `cast_shadow` hulls on every grass tile.
+PR6 garden scaffold map → then PR7∥8∥9∥10.
 
 ## Suggested first commands for the new session
 
 ```sh
 cd ~/dev/splite
 git status
-# then implement PR1 against docs/design.md
+# then implement PR5 against docs/design.md §5
 ```
