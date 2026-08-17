@@ -55,9 +55,27 @@ func _test_map_and_motion() -> void:
 	g.try_move(Vector3(0, 0, -0.8))
 	_check(g.player_level == 1, "left the run onto the level-1 landing")
 
+	g.place(5.0, 4.5, 0)
+	_check(g.try_interact() == &"", "E from north of door does nothing")
+	_check(not g.world.is_walkable(0, Vector2(5, 5)), "door still sealed from north")
+
 	g.place(5.0, 6.2, 0)
-	_check(g.try_interact() == &"door", "E from south lawn opens cellar")
-	_check(g.world.is_walkable(0, Vector2(5, 5)), "door walk flag after open")
+	g.tick(0.0)
+	_check(g.hint != null and g.hint.visible and g.hint.text == "Open the door", "WorldHint on door")
+	_check(g.try_interact() == &"door", "E from south lawn starts opening")
+	var door_cell: SplatWorld.Cell = g.world.cells[Vector3i(0, 5, 5)]
+	_check(door_cell.state == &"opening", "door enters opening")
+	_check(not g.world.is_walkable(0, Vector2(5, 5)), "SEQUENCE keeps closed walkable")
+	g.tick(0.41)
+	_check(g.world.cells[Vector3i(0, 5, 5)].state == &"open", "opening.next_state -> open")
+	_check(g.world.is_walkable(0, Vector2(5, 5)), "open door is walkable")
+	_check(g.door != null and not g.door.enabled, "door interactable disables when open")
+	_check(g.hint != null and g.hint.text == "", "WorldHint hidden after door opens")
+
+	g.place(5.0, 3.4, 0)
+	_check(g.try_interact() == &"ember", "E in cellar takes ember")
+	_check(g.ember_taken, "ember_taken")
+	_check(g.ember_item != null and not g.ember_item.enabled, "ember interactable disables")
 
 	_check(g.world.cells.has(Vector3i(1, 10, 5)), "walkway landing at (10,5) L1")
 	var walkway: SplatWorld.Cell = g.world.cells[Vector3i(1, 10, 5)]

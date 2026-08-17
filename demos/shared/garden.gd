@@ -65,10 +65,12 @@ var actor: SpliteActor
 var cam: SplatCameraRig
 var torch: OmniLight3D
 var ember: MeshInstance3D
+var door: TileInteractable
+var ember_item: Interactable
+var hint: WorldHint
 var player_level := 0
 var elev := 0.0
 var current_run = null
-var cellar_open := false
 var ember_taken := false
 var canopy_cloud: SplatCloud
 var _time := 0.0
@@ -85,10 +87,11 @@ func build() -> void:
 		for z in [run.bot, run.top]:
 			world.walk[Vector3i(run.level, run.x, z)] = true
 			world.walk[Vector3i(run.level + 1, run.x, z)] = true
-	_lock_cellar()
+	_spawn_door()
 	_spawn_ember()
 	_add_markers()
 	_add_canopy_standin()
+	_spawn_hint()
 
 	actor = SpliteActor.new()
 	actor.name = "Player"
@@ -129,8 +132,12 @@ func tick(delta: float) -> void:
 	_update_room()
 	if ember:
 		ember.visible = (not ember_taken) and world.active_rooms.has(&"CELLAR_IN")
+	if ember_item:
+		ember_item.enabled = (not ember_taken) and world.active_rooms.has(&"CELLAR_IN")
 	world.set_actor(actor.current_cloud(), actor.current_xform())
 	world.refresh(_time, delta)
+	if hint:
+		hint.retarget(nearest_interactable(actor))
 
 
 func try_move(step: Vector3) -> void:
@@ -146,48 +153,37 @@ func try_move(step: Vector3) -> void:
 
 
 func objective() -> String:
-	if not cellar_open:
+	if not _door_is_open():
 		return "Open the cellar door on the south face of the house."
 	if not ember_taken:
 		return "Step inside and take the ember."
 	return "That’s the scene. Walk the garden, the brush, the walkway."
 
 
-func interact_hint() -> String:
-	match _nearest_interact():
-		&"door":
-			return "E   open the cellar"
-		&"ember":
-			return "E   take the ember"
-	return ""
+func nearest_interactable(who: Node3D) -> Interactable:
+	var best: Interactable = null
+	var best_d := INF
+	for child in get_children():
+		if not (child is Interactable):
+			continue
+		var it: Interactable = child
+		if not it.enabled or not it.is_in_range(who):
+			continue
+		var origin: Vector3 = it.global_position if it.is_inside_tree() else it.position
+		var here: Vector3 = who.global_position if who.is_inside_tree() else who.position
+		var d := Vector2(origin.x - here.x, origin.z - here.z).length()
+		if d < best_d:
+			best_d = d
+			best = it
+	return best
 
 
 func try_interact() -> StringName:
-	# TODO(PR8): TileInteractable / Interactable — walk flag is a stand-in.
-	match _nearest_interact():
-		&"door":
-			cellar_open = true
-			world.walk[CELLAR_DOOR] = true
-			return &"door"
-		&"ember":
-			ember_taken = true
-			if ember:
-				ember.visible = false
-			return &"ember"
-	return &""
-
-
-func _nearest_interact() -> StringName:
-	var p := Vector2(actor.position.x, actor.position.z)
-	var room := world.room_at(player_level, p)
-	if not cellar_open and player_level == 0 and room != &"CELLAR_IN":
-		var door := Vector2(float(CELLAR_DOOR.y), float(CELLAR_DOOR.z))
-		if actor.position.z > float(CELLAR_DOOR.z) + 0.2 and p.distance_to(door) < 1.25:
-			return &"door"
-	if not ember_taken and room == &"CELLAR_IN":
-		if p.distance_to(Vector2(EMBER_POS.x, EMBER_POS.z)) < 1.05:
-			return &"ember"
-	return &""
+	var it := nearest_interactable(actor)
+	if it == null:
+		return &""
+	it.use(actor)
+	return it.verb
 
 
 func _paint() -> void:
@@ -261,11 +257,36 @@ func _update_room() -> void:
 	world.set_active_rooms(visible)
 	if torch:
 		torch.visible = world.active_rooms.has(&"CELLAR_IN")
+	if ember_item:
+		ember_item.enabled = (not ember_taken) and world.active_rooms.has(&"CELLAR_IN")
 
 
-func _lock_cellar() -> void:
-	cellar_open = false
-	world.walk.erase(CELLAR_DOOR)
+func _door_is_open() -> bool:
+	var rec: SplatWorld.Cell = world.cells.get(CELLAR_DOOR)
+	return rec != null and rec.state == &"open"
+
+
+func _spawn_door() -> void:
+	door = TileInteractable.new()
+	door.name = "CellarDoor"
+	door.world = world
+	door.cell = CELLAR_DOOR
+	door.to_state = &"opening"
+	door.disable_when_state = &"open"
+	door.prompt = "Open the door"
+	door.verb = &"door"
+	door.radius = 1.15
+	door.require_outside_facing = true
+	door.facing_axis = Vector3(0, 0, 1)
+	door.position = world.cell_origin(CELLAR_DOOR.x, CELLAR_DOOR.y, CELLAR_DOOR.z) + Vector3(0, 0.55, 0.15)
+	add_child(door)
+
+
+func _spawn_hint() -> void:
+	hint = WorldHint.new()
+	hint.name = "WorldHint"
+	hint.visible = false
+	add_child(hint)
 
 
 func _spawn_torch(level: int, x: int, z: int) -> void:
@@ -281,6 +302,15 @@ func _spawn_torch(level: int, x: int, z: int) -> void:
 
 
 func _spawn_ember() -> void:
+	ember_item = Interactable.new()
+	ember_item.name = "EmberItem"
+	ember_item.prompt = "Take the ember"
+	ember_item.verb = &"ember"
+	ember_item.radius = 1.05
+	ember_item.position = EMBER_POS
+	ember_item.enabled = false
+	ember_item.used.connect(_on_ember_used)
+	add_child(ember_item)
 	ember = MeshInstance3D.new()
 	ember.name = "Ember"
 	var sphere := SphereMesh.new()
@@ -293,9 +323,15 @@ func _spawn_ember() -> void:
 	mat.emission = Color(1.0, 0.4, 0.08)
 	mat.emission_energy_multiplier = 2.4
 	ember.material_override = mat
-	ember.position = EMBER_POS
 	ember.visible = false
-	add_child(ember)
+	ember_item.add_child(ember)
+
+
+func _on_ember_used(_who: Node) -> void:
+	ember_taken = true
+	ember_item.enabled = false
+	if ember:
+		ember.visible = false
 
 
 func _add_markers() -> void:

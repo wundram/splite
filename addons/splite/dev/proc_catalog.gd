@@ -250,17 +250,60 @@ static func _flower(rng: RandomNumberGenerator, id: StringName, petal: Color) ->
 	return _def(id, st)
 
 
-static func _cellar_door(rng: RandomNumberGenerator) -> TileDef:
-	## One-state stand-in. TODO(PR8): closed / opening / open.
-	var st := _one_state(&"cellar_door", AABB(Vector3(-0.5, 0.0, -0.5), Vector3(1, 1.15, 1)), false, TileDef.Cutaway.IF_ABOVE)
+static func _door_frame(yaw: float) -> SplatCloud:
+	# Same slab + handle; yaw rotates the dark blob about +Y. Seed is fixed
+	# so the four SEQUENCE frames share one blob, not four random ones.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 64
+	var c := SplatCloud.new()
+	_slab(c, rng, 1.16, Color(0.86, 0.83, 0.76), 0.28, 0.7)
+	var b := Basis.from_euler(Vector3(0.0, yaw, 0.0))
+	var handle := Vector3(0.0, 0.4, 0.42)
+	for _i in 4:
+		var o := Vector3(rng.randf_range(-0.08, 0.08), rng.randf_range(-0.08, 0.08), rng.randf_range(-0.08, 0.08))
+		c.add(b * (handle + o), rng.randf_range(0.07, 0.11), Color(0.16, 0.10, 0.08), 0.8)
+	c.recompute_aabb()
+	return c
+
+
+static func _door_state(id: StringName, walkable: bool, yaw: float) -> TileState:
+	var st := TileState.new()
+	st.display_name = String(id)
+	st.hull = AABB(Vector3(-0.5, 0.0, -0.5), Vector3(1, 1.15, 1))
+	st.walkable = walkable
+	st.cutaway = TileDef.Cutaway.IF_ABOVE
+	st.cast_model = TileDef.CastModel.HULL
+	st.receive_shadow = false
 	st.surface = TileSurface.new()
 	st.surface.visible = true
 	st.surface.color = Color(0.70, 0.66, 0.60)
-	st.cast_model = TileDef.CastModel.HULL
-	st.receive_shadow = false
-	_slab(st.cloud, rng, 1.16, Color(0.86, 0.83, 0.76), 0.28, 0.7)
-	_blob(st.cloud, rng, Vector3(0, 0.4, 0.42), 0.18, Color(0.16, 0.10, 0.08), 4, 0.6, 0.07, 0.11, 0.8)
-	return _def(&"cellar_door", st)
+	st.cloud = _door_frame(yaw)
+	st.next_state = &""
+	return st
+
+
+static func _cellar_door(_rng: RandomNumberGenerator) -> TileDef:
+	var closed := _door_state(&"closed", false, 0.0)
+	var opening := _door_state(&"opening", false, 0.0)
+	opening.enter_mode = 1
+	opening.sequence_fps = 10.0
+	opening.enter_duration = 0.0
+	opening.next_state = &"open"
+	opening.sequence = [
+		_door_frame(deg_to_rad(0.0)),
+		_door_frame(deg_to_rad(25.0)),
+		_door_frame(deg_to_rad(52.0)),
+		_door_frame(deg_to_rad(80.0)),
+	]
+	var opened := _door_state(&"open", true, deg_to_rad(80.0))
+	var def := TileDef.new()
+	def.id = &"cellar_door"
+	def.default_state = &"closed"
+	def.tags = PackedStringArray(["door"])
+	def.states[&"closed"] = closed
+	def.states[&"opening"] = opening
+	def.states[&"open"] = opened
+	return def
 
 
 static func _figure(rng: RandomNumberGenerator, swing: float) -> SplatCloud:

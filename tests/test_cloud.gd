@@ -104,6 +104,16 @@ func _test_tile_resources() -> void:
 	_check(door.states[&"opening"].next_state == &"open", "opening.next_state")
 	_check(opening.enter_mode == 1, "SEQUENCE enter_mode")
 
+	var catalog := ProcCatalog.tile_defs()
+	var cellar: TileDef = catalog[&"cellar_door"]
+	_check(cellar.default_state == &"closed", "catalog door default closed")
+	_check(cellar.states.has(&"opening") and cellar.states.has(&"open"), "catalog door graph")
+	var seq: Array = cellar.states[&"opening"].sequence
+	_check(seq.size() == 4, "four rotated door frames")
+	_check(cellar.states[&"opening"].sequence_fps == 10.0, "door 10 fps")
+	_check(cellar.states[&"open"].walkable, "open is walkable")
+	_check(not cellar.states[&"closed"].walkable, "closed blocks")
+
 	var surface := TileSurface.new()
 	_check(surface.visible == false, "surface default hidden")
 

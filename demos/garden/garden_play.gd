@@ -5,7 +5,6 @@ const WALK_SPEED := 3.4
 
 var garden: Node
 var objective: Label
-var prompt: Label
 var meta: Label
 var debug: Node
 var shot_path := ""
@@ -42,10 +41,6 @@ func _process(delta: float) -> void:
 	garden.tick(delta)
 	if objective:
 		objective.text = garden.objective()
-	if prompt:
-		var hint: String = garden.interact_hint()
-		prompt.text = hint
-		prompt.visible = hint != ""
 	if meta:
 		var fps := Engine.get_frames_per_second()
 		var ms := (1000.0 / float(fps)) if fps > 0 else 0.0
@@ -63,13 +58,6 @@ func _build_hud() -> void:
 	objective.add_theme_color_override("font_color", Color(0.96, 0.94, 0.88))
 	objective.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))
 	layer.add_child(objective)
-	prompt = Label.new()
-	prompt.position = Vector2(16, 40)
-	prompt.add_theme_font_size_override("font_size", 16)
-	prompt.add_theme_color_override("font_color", Color(1.0, 0.86, 0.45))
-	prompt.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))
-	prompt.visible = false
-	layer.add_child(prompt)
 	meta = Label.new()
 	meta.position = Vector2(16, 1160)
 	meta.add_theme_font_size_override("font_size", 13)
