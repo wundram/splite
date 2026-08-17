@@ -1,0 +1,10 @@
+id = "tree_hero"
+source = "builtin:cube"
+license = "CC0"
+url = "https://polyhaven.com/"
+kind = "canopy_volume"
+footprint_m = 1.0
+allow_overhang = true
+views = 64
+budget = 600
+# SKU: Poly Haven CC0 first (K18). Cube fixture until the tree is picked.

@@ -1,0 +1,11 @@
+id = "player_walk"
+source = "builtin:cube"
+license = "CC0"
+url = "https://polyhaven.com/"
+kind = "splite"
+clip = "walk"
+footprint_m = 0.36
+views = 64
+budget = 400
+# frames = N  (one cone-fit per posed walk-cycle key)
+# SKU: Poly Haven CC0 character first (K18). Cube fixture until picked.
