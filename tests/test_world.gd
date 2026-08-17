@@ -11,6 +11,7 @@ func _initialize() -> void:
 	_test_grid()
 	_test_state_clock()
 	_test_camera_offset()
+	_test_cutaway()
 	if _failed == 0:
 		print("test_world: PASS")
 		quit(0)
@@ -104,3 +105,37 @@ func _test_camera_offset() -> void:
 	var tilt := rad_to_deg(atan(Vector2(off.x, off.z).length() / off.y))
 	_check(tilt > 8.0 and tilt < 12.0, "tilt ~10° (got %.2f)" % tilt)
 	rig.free()
+
+
+func _test_cutaway() -> void:
+	var world := SplatWorld.new()
+	root.add_child(world)
+	var empty := SplatCloud.new()
+	world.set_actor(empty, Transform3D(Basis.IDENTITY, Vector3.ZERO))
+	world.refresh(0.0, 0.0)
+	_check(world.cut_origin().is_equal_approx(Vector3(0.0, 0.72, 0.0)), "delta 0 snaps to head")
+
+	world.set_actor(empty, Transform3D(Basis.IDENTITY, Vector3(8.0, 1.25, 3.0)))
+	world.refresh(0.0, 1.0 / 60.0)
+	var o := world.cut_origin()
+	var a := 1.0 - exp(-14.0 / 60.0)
+	_check(absf(o.x - 8.0 * a) < 0.05, "xz follows at ~14 Hz (got %.3f, want %.3f)" % [o.x, 8.0 * a])
+	_check(absf(o.z - 3.0 * a) < 0.05, "z follows at ~14 Hz (got %.3f)" % o.z)
+	_check(is_equal_approx(o.y, 1.97), "Y tracks head immediately (got %.3f)" % o.y)
+
+	world.refresh(0.0, 0.0)
+	_check(world.cut_origin().is_equal_approx(Vector3(8.0, 1.97, 3.0)), "delta 0 snaps after teleport")
+
+	_check(is_equal_approx(world.cutaway_amount(Vector3(8, 2, 3), 0.0, 3.0), 0.0), "NEVER is 0")
+	world.cutaway_enabled = false
+	_check(is_equal_approx(world.cutaway_amount(Vector3(8, 2, 3), 1.0, 4.0), 0.0), "disabled is 0")
+	world.cutaway_enabled = true
+
+	var canopy := SplatCloud.new()
+	canopy.add(Vector3(0, 1.6, 0), 0.65, Color(0.2, 0.5, 0.2), 0.7)
+	canopy.recompute_aabb()
+	world.add_extra_cloud(canopy, Transform3D.IDENTITY, float(TileDef.Cutaway.IF_OCCLUDES), 2.4)
+	_check(world.extra_count() == 1, "extra cloud stored")
+	world.clear_extra_clouds()
+	_check(world.extra_count() == 0, "extras cleared")
+	world.free()

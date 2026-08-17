@@ -6,6 +6,8 @@ extends Node3D
 const AFTERNOON_SUN := Vector3(-0.76, 0.54, -0.35)
 const ENTER_CROSSFADE := 0
 const ENTER_SEQUENCE := 1
+const _ACTOR_HEAD := 0.72
+const _CUT_FOLLOW_HZ := 14.0
 
 signal state_finished(cell_key: Vector3i, from: StringName, to: StringName)
 
@@ -17,8 +19,11 @@ signal state_finished(cell_key: Vector3i, from: StringName, to: StringName)
 	set(v):
 		sun_dir = v
 		_needs_lights = true
+@export var cutaway_enabled: bool = true
 @export var cutaway_inner: float = 1.45
 @export var cutaway_outer: float = 2.90
+@export var cutaway_y_soft: float = 0.22
+@export var cutaway_y_bias: float = 0.25
 
 var defs: Dictionary[StringName, TileDef] = {}
 var cells: Dictionary[Vector3i, Cell] = {}
@@ -32,7 +37,13 @@ var _surface_mat: ShaderMaterial
 var _needs_static := true
 var _needs_dyn := false
 var _needs_lights := true
-var _frustum_anchor := Vector3i(2147483647, 2147483647, 2147483647)
+var _actor_cloud: SplatCloud
+var _actor_xform := Transform3D.IDENTITY
+var _actor_mod := Color.WHITE
+var _extras: Array[Dictionary] = []
+var _cut_xz := Vector2.ZERO
+var _cut_y := 0.72
+var _cut_ready := false
 
 
 class Cell extends RefCounted:
@@ -144,15 +155,83 @@ func room_at(level: int, xz: Vector2) -> StringName:
 	return &"OUTSIDE"
 
 
+func gaussian_count() -> int:
+	_ensure()
+	return _batch.instance_count if _batch else 0
+
+
+func set_actor(cloud: SplatCloud, xform: Transform3D, modulate: Color = Color.WHITE) -> void:
+	_actor_cloud = cloud
+	_actor_xform = xform
+	_actor_mod = modulate
+	_needs_dyn = true
+
+
+func add_extra_cloud(cloud: SplatCloud, xform: Transform3D, policy: float, hull_top: float) -> void:
+	_extras.append({
+		"cloud": cloud,
+		"xform": xform,
+		"policy": policy,
+		"top": hull_top,
+	})
+	_needs_static = true
+
+
+func clear_extra_clouds() -> void:
+	_extras.clear()
+	_needs_static = true
+
+
+func extra_count() -> int:
+	return _extras.size()
+
+
+func hull_count() -> int:
+	return 0 if _hulls == null else _hulls.get_child_count()
+
+
+func cut_origin() -> Vector3:
+	return Vector3(_cut_xz.x, _cut_y, _cut_xz.y)
+
+
+func actor_head() -> Vector3:
+	return _actor_xform.origin + Vector3(0.0, _ACTOR_HEAD, 0.0)
+
+
+func cutaway_amount(world_pos: Vector3, policy: float, hull_top: float) -> float:
+	# Mirrors cutaway.gdshaderinc. Tests use this; shaders stay the draw path.
+	if not cutaway_enabled or policy < 0.5:
+		return 0.0
+	var origin := cut_origin()
+	var ref_y := origin.y + cutaway_y_bias
+	if policy < 1.5:
+		ref_y = origin.y - _ACTOR_HEAD + cutaway_y_bias
+	var above := _glsl_smoothstep(ref_y, ref_y + cutaway_y_soft, hull_top)
+	var d := Vector2(world_pos.x - origin.x, world_pos.z - origin.z).length()
+	var ring := 1.0 - _glsl_smoothstep(cutaway_inner, cutaway_outer, d)
+	return clampf(above * ring, 0.0, 1.0)
+
+
+static func _glsl_smoothstep(edge0: float, edge1: float, x: float) -> float:
+	if is_equal_approx(edge0, edge1):
+		return 1.0 if x >= edge1 else 0.0
+	var t := clampf((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+
 func refresh(time: float, delta: float) -> void:
 	_ensure()
 	if _batch == null:
 		return
 	_tick_transitions(delta)
-	_update_frustum_anchor()
-	var head := Vector3(0.0, 0.72, 0.0)
-	_batch.set_cutaway(head, cutaway_inner, cutaway_outer)
-	_apply_surface_cutaway(head)
+	_update_cut_origin(delta)
+	var origin := cut_origin()
+	var inner := cutaway_inner
+	var outer := cutaway_outer
+	if not cutaway_enabled:
+		inner = 1000.0
+		outer = 1001.0
+	_batch.set_cutaway(origin, inner, outer, cutaway_y_soft, cutaway_y_bias, _ACTOR_HEAD)
 	if _needs_lights:
 		_apply_lights()
 	if _needs_static:
@@ -163,9 +242,22 @@ func refresh(time: float, delta: float) -> void:
 	if _needs_dyn:
 		_rebuild_dynamic(time)
 		_needs_dyn = false
+	_apply_surface_cutaway(origin, inner, outer)
 	_batch.commit()
 	if _drops:
 		_drops.commit()
+
+
+func _update_cut_origin(delta: float) -> void:
+	var head := actor_head()
+	var target := Vector2(head.x, head.z)
+	if not _cut_ready or delta <= 0.0:
+		_cut_xz = target
+		_cut_ready = true
+	else:
+		var a := 1.0 - exp(-_CUT_FOLLOW_HZ * delta)
+		_cut_xz = _cut_xz.lerp(target, a)
+	_cut_y = head.y
 
 
 func _state(cell: Cell) -> TileState:
@@ -262,6 +354,8 @@ func _finish_state(key: Vector3i, cell: Cell, st: TileState) -> void:
 
 
 func _rebuild_static() -> void:
+	# Room / cell change only. Walking must not recreate the static batch
+	# or hull MeshInstance3Ds — that is what locked the garden after ~30s.
 	_batch.clear_static()
 	for key in cells:
 		var cell: Cell = cells[key]
@@ -271,14 +365,20 @@ func _rebuild_static() -> void:
 		if st == null or st.cloud == null:
 			continue
 		var origin := cell_origin(key.x, key.y, key.z)
-		if not _cell_in_frustum(origin, st.hull):
-			continue
 		_batch.add_static_cloud(
 			st.cloud,
 			Transform3D(Basis.IDENTITY, origin),
 			Color.WHITE,
 			float(st.cutaway),
 			_cut_measure(st, origin)
+		)
+	for extra in _extras:
+		_batch.add_static_cloud(
+			extra.cloud,
+			extra.xform,
+			Color.WHITE,
+			float(extra.policy),
+			float(extra.top)
 		)
 
 
@@ -305,6 +405,9 @@ func _rebuild_dynamic(_time: float) -> void:
 			if st.cloud != null:
 				var b := Color(1, 1, 1, cell.blend)
 				_batch.add_dynamic_cloud(st.cloud, xf, b, float(st.cutaway), top)
+	if _actor_cloud:
+		_batch.add_dynamic_cloud(_actor_cloud, _actor_xform, _actor_mod)
+	_update_actor_drop()
 
 
 func _cut_measure(st: TileState, origin: Vector3) -> float:
@@ -321,12 +424,15 @@ func _ensure_surface_mat() -> void:
 	_surface_mat.set_shader_parameter("roughness", 0.88)
 
 
-func _apply_surface_cutaway(head: Vector3) -> void:
+func _apply_surface_cutaway(origin: Vector3, inner: float, outer: float) -> void:
 	if _surface_mat == null:
 		return
-	_surface_mat.set_shader_parameter("cut_origin", head)
-	_surface_mat.set_shader_parameter("cut_inner", cutaway_inner)
-	_surface_mat.set_shader_parameter("cut_outer", cutaway_outer)
+	_surface_mat.set_shader_parameter("cut_origin", origin)
+	_surface_mat.set_shader_parameter("cut_inner", inner)
+	_surface_mat.set_shader_parameter("cut_outer", outer)
+	_surface_mat.set_shader_parameter("cut_y_soft", cutaway_y_soft)
+	_surface_mat.set_shader_parameter("cut_y_bias", cutaway_y_bias)
+	_surface_mat.set_shader_parameter("cut_head", _ACTOR_HEAD)
 
 
 func _apply_lights() -> void:
@@ -378,8 +484,6 @@ func _rebuild_static_drops() -> void:
 		if st == null or st.cast_model == TileDef.CastModel.NONE:
 			continue
 		var origin := cell_origin(key.x, key.y, key.z)
-		if not _cell_in_frustum(origin, st.hull):
-			continue
 		var top := origin.y + st.cast_height()
 		var rec_y := _receiver_y(key.x, key.y, key.z)
 		var lift := top - rec_y
@@ -395,9 +499,28 @@ func _rebuild_static_drops() -> void:
 		_drops.add_static(pos, half, str, blob)
 
 
+func _update_actor_drop() -> void:
+	if _drops == null:
+		return
+	_drops.clear_dynamic()
+	if _actor_cloud == null:
+		return
+	var origin := _actor_xform.origin
+	var rec_y := _receiver_y(
+		int(round(origin.y / maxf(level_height, 0.001))),
+		int(round(origin.x)),
+		int(round(origin.z))
+	)
+	var pos := origin + _ground_offset(0.72)
+	pos.y = rec_y + 0.035
+	_drops.add_dynamic(pos, Vector2(0.28, 0.22), 0.38, true)
+
+
 func _rebuild_hulls() -> void:
-	for c in _hulls.get_children():
-		c.queue_free()
+	while _hulls.get_child_count() > 0:
+		var old := _hulls.get_child(0)
+		_hulls.remove_child(old)
+		old.free()
 	_ensure_surface_mat()
 	for key in cells:
 		var cell: Cell = cells[key]
@@ -407,8 +530,6 @@ func _rebuild_hulls() -> void:
 		if st == null or st.surface == null or not st.surface.visible:
 			continue
 		var origin := cell_origin(key.x, key.y, key.z)
-		if not _cell_in_frustum(origin, st.hull):
-			continue
 		var mi := MeshInstance3D.new()
 		if st.surface.mesh != null:
 			mi.mesh = st.surface.mesh
@@ -424,41 +545,3 @@ func _rebuild_hulls() -> void:
 		mi.set_instance_shader_parameter("cut_policy", float(st.cutaway))
 		mi.set_instance_shader_parameter("hull_top", _cut_measure(st, origin))
 		_hulls.add_child(mi)
-
-
-func _update_frustum_anchor() -> void:
-	if not is_inside_tree():
-		return
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return
-	# Quantize camera XZ so a walk rebuilds static once per tile, not per frame.
-	var next := Vector3i(0, int(round(cam.global_position.x)), int(round(cam.global_position.z)))
-	if next != _frustum_anchor:
-		_frustum_anchor = next
-		_needs_static = true
-
-
-func _cell_in_frustum(origin: Vector3, hull: AABB) -> bool:
-	if not is_inside_tree():
-		return true
-	var cam := get_viewport().get_camera_3d()
-	if cam == null:
-		return true
-	var pad := Vector3(2.0, 1.0, 2.0)
-	var center := origin + hull.get_center()
-	if cam.is_position_in_frustum(center):
-		return true
-	var p := origin + hull.position - pad
-	var s := hull.size + pad * 2.0
-	var pts := [
-		p,
-		p + Vector3(s.x, 0.0, 0.0),
-		p + Vector3(0.0, 0.0, s.z),
-		p + Vector3(s.x, 0.0, s.z),
-		p + Vector3(s.x * 0.5, s.y, s.z * 0.5),
-	]
-	for pt in pts:
-		if cam.is_position_in_frustum(pt):
-			return true
-	return false

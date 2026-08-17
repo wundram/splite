@@ -74,13 +74,23 @@ func add_dynamic_cloud(cloud: SplatCloud, xform: Transform3D, modulate: Color = 
 	_dyn_dirty = true
 
 
-func set_cutaway(origin: Vector3, inner: float = 1.45, outer: float = 2.90) -> void:
+func set_cutaway(
+		origin: Vector3,
+		inner: float = 1.45,
+		outer: float = 2.90,
+		y_soft: float = 0.22,
+		y_bias: float = 0.25,
+		head: float = 0.72
+) -> void:
 	_ensure_meshes()
 	if _mat == null:
 		return
 	_mat.set_shader_parameter("cut_origin", origin)
 	_mat.set_shader_parameter("cut_inner", inner)
 	_mat.set_shader_parameter("cut_outer", outer)
+	_mat.set_shader_parameter("cut_y_soft", y_soft)
+	_mat.set_shader_parameter("cut_y_bias", y_bias)
+	_mat.set_shader_parameter("cut_head", head)
 
 
 func set_lighting(

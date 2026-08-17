@@ -55,23 +55,31 @@ func offset() -> Vector3:
 	return Vector3(-west, height, south)
 
 
+func _focus() -> Vector3:
+	if target == null:
+		return Vector3.ZERO
+	if target.is_inside_tree():
+		return target.global_position
+	return target.position
+
+
 func _place(instant: bool, delta: float = 0.0) -> void:
-	var focus := Vector3.ZERO
-	if target:
-		focus = target.global_position
-	var dest := focus + offset()
+	var dest := _focus() + offset()
 	if instant or follow_speed <= 0.0:
-		global_position = dest
-	else:
+		if is_inside_tree():
+			global_position = dest
+		else:
+			position = dest
+	elif is_inside_tree():
 		global_position = global_position.lerp(dest, 1.0 - exp(-follow_speed * delta))
+	else:
+		position = position.lerp(dest, 1.0 - exp(-follow_speed * delta))
 
 
 func _look() -> void:
-	if camera == null:
+	if camera == null or not camera.is_inside_tree():
 		return
-	var focus := Vector3.ZERO
-	if target:
-		focus = target.global_position
+	var focus := _focus()
 	# World -Z is "north" / screen-up. Using Vector3.UP here is degenerate
 	# when the view is nearly vertical and yaws the map 45°.
 	camera.look_at(focus, Vector3(0.0, 0.0, -1.0))

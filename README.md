@@ -20,9 +20,16 @@ Godot **4.7** is at `/Applications/Godot.app`. From the repo root:
 /Applications/Godot.app/Contents/MacOS/Godot --path .
 ```
 
-That opens a black 1920×1200 window titled **Splite**. There is no
-garden yet — the host project and an empty `addons/splite` plugin
-are the first slice.
+That opens a black 1920×1200 window titled **Splite**. WASD to walk
+the garden; stairs climb when you walk along them. Walk under the
+stone walkway (or the trunk canopy) to see the cut-away. F3 draws
+the hole cylinder.
+
+Headless shot:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --path . -- --shot=/tmp/garden.png --frames=20
+```
 
 ## Layout
 
@@ -30,7 +37,7 @@ are the first slice.
 |---|---|
 | `addons/splite/` | The plugin. This is the engine. |
 | `addons/splite/editor/` | Empty until a tile painter. |
-| `demos/` | Garden + tour (later PRs). |
+| `demos/garden/` | Walkable clover slab + stair (main scene). |
 | `tools/pipeline/` | Asset pipeline CLI (later PRs). |
 | `assets/` | Source models, clouds, tiles (later PRs). |
 | `docs/design.md` | Architecture (start here). |
