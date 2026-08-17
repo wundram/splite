@@ -1,0 +1,19 @@
+# Pinned train host. Fill the triple the first time this runs on CUDA.
+# Record: `ns-train --version`, gsplat, torch, CUDA.
+
+ns-train: unset
+gsplat: unset
+torch: unset
+cuda: unset
+nerfstudio: unset
+
+dataparser: colmap
+masks_flag: --masks-path
+images_dir: images
+vis: none
+# Method flags MUST come before the dataparser name.
+cli: ns-train splatfacto [method] --vis none --data <ns> colmap --masks-path masks
+
+# points3D.txt: RGB 128, ERROR 1, empty track.
+# If the pinned pycolmap rejects empty tracks, attach dummy `1 0` and note it here.
+empty_tracks: allowed
