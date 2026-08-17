@@ -28,6 +28,40 @@ static func tile_defs() -> Dictionary:
 	}
 
 
+static func foam_standin() -> SplatCloud:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 77
+	var c := SplatCloud.new()
+	for i in 8:
+		var a := float(i) * TAU / 8.0
+		var r := rng.randf_range(0.15, 0.55)
+		c.add(Vector3(cos(a) * r, 0.08, sin(a) * r), rng.randf_range(0.10, 0.16), Color(0.75, 0.88, 0.86), 0.55)
+	c.recompute_aabb()
+	return c
+
+
+static func canopy_volume_def() -> SplatVolumeDef:
+	var d := SplatVolumeDef.new()
+	d.id = &"canopy_proc"
+	d.cloud = canopy_standin()
+	d.kind = SplatVolumeDef.Kind.CANOPY
+	d.cutaway = TileDef.Cutaway.IF_OCCLUDES
+	d.room = &"OUTSIDE"
+	d.cast_model = TileDef.CastModel.BLOB
+	d.cast_height = 1.8
+	return d
+
+
+static func foam_volume_def() -> SplatVolumeDef:
+	var d := SplatVolumeDef.new()
+	d.id = &"pond_foam"
+	d.cloud = foam_standin()
+	d.kind = SplatVolumeDef.Kind.ATMOS
+	d.cutaway = TileDef.Cutaway.NEVER
+	d.room = &""
+	return d
+
+
 static func canopy_standin() -> SplatCloud:
 	## Large-kernel (≥ 0.6 m) IF_OCCLUDES stand-in. Temporary until PR10 SplatVolume.
 	var rng := RandomNumberGenerator.new()

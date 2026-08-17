@@ -21,7 +21,8 @@ Godot **4.7** is at `/Applications/Godot.app`. From the repo root:
 ```
 
 That opens a black 1920×1200 window titled **Splite**. WASD to walk
-the garden; stairs climb when you walk along them. Walk under the
+the garden; stairs climb when you walk along them. E opens the cellar
+door / takes the ember. `[` `]` scrub the clock. Walk under the
 stone walkway (or the trunk canopy) to see the cut-away. F3 draws
 the hole cylinder.
 

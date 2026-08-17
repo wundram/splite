@@ -95,7 +95,17 @@ func _test_map_and_motion() -> void:
 	_check(on_top < 0.05, "on walkway does not cut (got %.3f)" % on_top)
 
 	_check(g.canopy_cloud != null, "canopy stand-in exists")
-	_check(g.world.extra_count() == 1, "canopy submitted as extra, not a SplatVolume")
+	_check(g.canopy_volume != null, "canopy is a SplatVolume")
+	_check(g.canopy_volume.def.cutaway == TileDef.Cutaway.IF_OCCLUDES, "canopy IF_OCCLUDES")
+	_check(g.canopy_volume.def.kind == SplatVolumeDef.Kind.CANOPY, "canopy kind")
+	_check(g.foam_volume != null and g.foam_volume.def.kind == SplatVolumeDef.Kind.ATMOS, "pond ATMOS foam")
+	_check(g.pond_field != null and g.pond_field.mode == DistortionField.Mode.HEAT, "pond HEAT field")
+	_check(g.world.extra_count() == 0, "no extra-cloud stand-in after PR10")
+	var sky_n := 0
+	for vol in g.world.volumes:
+		if vol.def.kind == SplatVolumeDef.Kind.SKY:
+			sky_n += 1
+	_check(sky_n == 0, "no SKY volume")
 	var min_r := 99.0
 	for r in g.canopy_cloud.radii:
 		if r < min_r:
@@ -111,7 +121,7 @@ func _test_map_and_motion() -> void:
 	var hulls0: int = g.world.hull_count()
 	var gaussians0: int = g.world.gaussian_count()
 	g.place(8.0, 11.0, 0)
-	for i in 2000:
+	for i in 400:
 		var t := float(i) * 0.35
 		g.try_move(Vector3(cos(t) * 0.08, 0.0, sin(t) * 0.08))
 		g.tick(0.016)

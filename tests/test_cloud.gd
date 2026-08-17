@@ -123,3 +123,17 @@ func _test_tile_resources() -> void:
 	vol.cutaway = TileDef.Cutaway.IF_OCCLUDES
 	_check(vol.kind == SplatVolumeDef.Kind.CANOPY, "volume kind")
 	_check(vol.cast_model == TileDef.CastModel.NONE, "volume default cast")
+
+	var field := DistortionField.new()
+	root.add_child(field)
+	field.mode = DistortionField.Mode.HEAT
+	field.position = Vector3.ZERO
+	field.radius = 2.0
+	field.strength = 1.0
+	var p0 := Vector3(0.4, 0.1, 0.0)
+	var p1 := field.displace(p0, 0.4)
+	_check(p1 != p0, "HEAT displaces a nearby point")
+	field.mode = DistortionField.Mode.SWIRL
+	var p2 := field.displace(p0, 0.8)
+	_check(absf(p2.y - p0.y) < 0.0001, "SWIRL keeps Y")
+	field.free()

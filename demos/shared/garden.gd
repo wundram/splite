@@ -77,6 +77,9 @@ var elev := 0.0
 var current_run = null
 var ember_taken := false
 var canopy_cloud: SplatCloud
+var canopy_volume: SplatVolume
+var foam_volume: SplatVolume
+var pond_field: DistortionField
 var _time := 0.0
 
 
@@ -94,7 +97,7 @@ func build() -> void:
 	_spawn_door()
 	_spawn_ember()
 	_add_markers()
-	_add_canopy_standin()
+	_add_volumes_and_field()
 	_spawn_hint()
 
 	actor = SpliteActor.new()
@@ -376,16 +379,32 @@ func _add_markers() -> void:
 	add_child(trunk)
 
 
-func _add_canopy_standin() -> void:
-	# TODO(PR10): replace with a SplatVolume (CANOPY) on TrunkMarker.
-	canopy_cloud = ProcCatalog.canopy_standin()
-	var top := TRUNK_MARK.y + canopy_cloud.aabb.position.y + canopy_cloud.aabb.size.y
-	world.add_extra_cloud(
-		canopy_cloud,
-		Transform3D(Basis.IDENTITY, TRUNK_MARK),
-		float(TileDef.Cutaway.IF_OCCLUDES),
-		top
-	)
+func _add_volumes_and_field() -> void:
+	pond_field = DistortionField.new()
+	pond_field.name = "PondHeat"
+	pond_field.mode = DistortionField.Mode.HEAT
+	pond_field.radius = 1.7
+	pond_field.strength = 0.35
+	pond_field.rate = 1.2
+	pond_field.position = POND_MARK
+	add_child(pond_field)
+	world.fields.append(pond_field)
+
+	foam_volume = SplatVolume.new()
+	foam_volume.name = "PondFoam"
+	foam_volume.def = ProcCatalog.foam_volume_def()
+	foam_volume.position = POND_MARK
+	add_child(foam_volume)
+	world.volumes.append(foam_volume)
+
+	var cdef := ProcCatalog.canopy_volume_def()
+	canopy_cloud = cdef.cloud
+	canopy_volume = SplatVolume.new()
+	canopy_volume.name = "Canopy"
+	canopy_volume.def = cdef
+	canopy_volume.position = TRUNK_MARK
+	add_child(canopy_volume)
+	world.volumes.append(canopy_volume)
 
 
 func _add_environment() -> void:

@@ -44,6 +44,8 @@ var clock: DayClock
 var lantern: Lantern
 var sun_light: DirectionalLight3D
 var environment: Environment
+var fields: Array[DistortionField] = []
+var volumes: Array[SplatVolume] = []
 var _actor_cloud: SplatCloud
 var _actor_xform := Transform3D.IDENTITY
 var _actor_mod := Color.WHITE
@@ -231,6 +233,8 @@ func refresh(time: float, delta: float) -> void:
 	if _batch == null:
 		return
 	_tick_transitions(delta)
+	if not fields.is_empty():
+		_needs_dyn = true
 	if clock:
 		clock.advance(delta)
 		_apply_clock()
@@ -381,6 +385,8 @@ func _rebuild_static() -> void:
 		if st == null or st.cloud == null:
 			continue
 		var origin := cell_origin(key.x, key.y, key.z)
+		if _near_field(origin):
+			continue
 		_batch.add_static_cloud(
 			st.cloud,
 			Transform3D(Basis.IDENTITY, origin),
@@ -396,13 +402,19 @@ func _rebuild_static() -> void:
 			float(extra.policy),
 			float(extra.top)
 		)
+	for vol in volumes:
+		if not _volume_visible(vol) or _volume_is_dynamic(vol):
+			continue
+		var def: SplatVolumeDef = vol.def
+		var top := vol.world_pos().y + vol.cutaway_height()
+		_batch.add_static_cloud(def.cloud, vol.world_xform(), Color.WHITE, float(def.cutaway), top)
 
 
-func _rebuild_dynamic(_time: float) -> void:
+func _rebuild_dynamic(time: float) -> void:
 	_batch.clear_dynamic()
 	for key in cells:
 		var cell: Cell = cells[key]
-		if not _room_active(cell.room) or not _is_transitioning(cell):
+		if not _room_active(cell.room):
 			continue
 		var st := _state(cell)
 		if st == null:
@@ -410,20 +422,84 @@ func _rebuild_dynamic(_time: float) -> void:
 		var origin := cell_origin(key.x, key.y, key.z)
 		var xf := Transform3D(Basis.IDENTITY, origin)
 		var top := _cut_measure(st, origin)
-		if st.enter_mode == ENTER_SEQUENCE and not st.sequence.is_empty():
-			var idx := clampi(int(cell.seq_time * st.sequence_fps), 0, st.sequence.size() - 1)
-			_batch.add_dynamic_cloud(st.sequence[idx], xf, Color.WHITE, float(st.cutaway), top)
-		else:
-			var from_st := _from_state(cell)
-			if from_st != null and from_st.cloud != null:
-				var a := Color(1, 1, 1, 1.0 - cell.blend)
-				_batch.add_dynamic_cloud(from_st.cloud, xf, a, float(from_st.cutaway), _cut_measure(from_st, origin))
-			if st.cloud != null:
-				var b := Color(1, 1, 1, cell.blend)
-				_batch.add_dynamic_cloud(st.cloud, xf, b, float(st.cutaway), top)
+		var near := _near_field(origin)
+		if _is_transitioning(cell):
+			if st.enter_mode == ENTER_SEQUENCE and not st.sequence.is_empty():
+				var idx := clampi(int(cell.seq_time * st.sequence_fps), 0, st.sequence.size() - 1)
+				_submit_cloud(st.sequence[idx], xf, Color.WHITE, float(st.cutaway), top, time, near)
+			else:
+				var from_st := _from_state(cell)
+				if from_st != null and from_st.cloud != null:
+					var a := Color(1, 1, 1, 1.0 - cell.blend)
+					_submit_cloud(from_st.cloud, xf, a, float(from_st.cutaway), _cut_measure(from_st, origin), time, near)
+				if st.cloud != null:
+					var b := Color(1, 1, 1, cell.blend)
+					_submit_cloud(st.cloud, xf, b, float(st.cutaway), top, time, near)
+		elif near and st.cloud != null:
+			_submit_cloud(st.cloud, xf, Color.WHITE, float(st.cutaway), top, time, true)
+	for vol in volumes:
+		if not _volume_visible(vol) or not _volume_is_dynamic(vol):
+			continue
+		var def: SplatVolumeDef = vol.def
+		var top := vol.world_pos().y + vol.cutaway_height()
+		_submit_cloud(def.cloud, vol.world_xform(), Color.WHITE, float(def.cutaway), top, time, true)
 	if _actor_cloud:
-		_batch.add_dynamic_cloud(_actor_cloud, _actor_xform, _actor_mod)
+		if _near_field(_actor_xform.origin):
+			_submit_cloud(_actor_cloud, _actor_xform, _actor_mod, 0.0, 0.0, time, true)
+		else:
+			_batch.add_dynamic_cloud(_actor_cloud, _actor_xform, _actor_mod)
 	_update_actor_drop()
+
+
+func _submit_cloud(cloud: SplatCloud, xf: Transform3D, mod: Color, policy: float, top: float, time: float, distort: bool) -> void:
+	if cloud == null:
+		return
+	if distort and not fields.is_empty():
+		_add_distorted(cloud, xf, mod, time, policy, top)
+	else:
+		_batch.add_dynamic_cloud(cloud, xf, mod, policy, top)
+
+
+func _add_distorted(cloud: SplatCloud, xf: Transform3D, mod: Color, time: float, policy: float, hull_top: float) -> void:
+	var warped := SplatCloud.new()
+	var scale := xf.basis.get_scale().x
+	for i in cloud.size():
+		var wp: Vector3 = xf * cloud.positions[i]
+		for f in fields:
+			wp = f.displace(wp, time)
+		warped.add(wp, cloud.radii[i] * scale, cloud.colors[i], cloud.opacities[i])
+	warped.recompute_aabb()
+	_batch.add_dynamic_cloud(warped, Transform3D.IDENTITY, mod, policy, hull_top)
+
+
+func _near_field(origin: Vector3) -> bool:
+	for f in fields:
+		if f == null:
+			continue
+		var fp := f.origin()
+		var d := Vector2(origin.x - fp.x, origin.z - fp.z).length()
+		if d < f.radius + 1.4:
+			return true
+	return false
+
+
+func _volume_visible(vol: SplatVolume) -> bool:
+	if vol == null or not vol.visible or vol.def == null or vol.def.cloud == null:
+		return false
+	var room := vol.room()
+	if room == &"":
+		if vol.def.kind == SplatVolumeDef.Kind.SKY or vol.def.kind == SplatVolumeDef.Kind.ATMOS:
+			return active_rooms.is_empty() or active_rooms.has(&"OUTSIDE")
+		return true
+	return _room_active(room)
+
+
+func _volume_is_dynamic(vol: SplatVolume) -> bool:
+	if vol == null or vol.def == null:
+		return false
+	if vol.def.kind == SplatVolumeDef.Kind.ATMOS:
+		return true
+	return _near_field(vol.world_pos())
 
 
 func _cut_measure(st: TileState, origin: Vector3) -> float:
@@ -538,6 +614,19 @@ func _rebuild_static_drops() -> void:
 			half *= 1.15
 		var str := clampf(0.18 + lift * 0.05, 0.22, 0.40)
 		_drops.add_static(pos, half, str, blob)
+	for vol in volumes:
+		if not _volume_visible(vol) or vol.def.cast_model == TileDef.CastModel.NONE:
+			continue
+		var origin := vol.world_pos()
+		var top := origin.y + vol.def.cast_height
+		var rec_y := _receiver_y(int(round(origin.y / maxf(level_height, 0.001))), int(round(origin.x)), int(round(origin.z)))
+		var lift := top - rec_y
+		if lift < 0.22:
+			continue
+		var pos := origin + _ground_offset(lift)
+		pos.y = rec_y + 0.03
+		var blob := vol.def.cast_model == TileDef.CastModel.BLOB
+		_drops.add_static(pos, Vector2(1.2, 1.2) if blob else Vector2(0.8, 0.8), 0.28, blob)
 
 
 func _update_actor_drop() -> void:

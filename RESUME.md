@@ -1,7 +1,7 @@
 # Resume here
 
 **Repo:** `/Users/wundram/dev/splite` (`main`)  
-**Next work:** **PR10** — distortion fields + environmental volumes.
+**Next work:** **PR11a** — cone-render + coordinate test. Or **PR12** (garden polish + feature tour). Do not start unless asked.
 
 Open this folder as the workspace. Read `docs/design.md` before writing code.
 
@@ -9,12 +9,12 @@ Open this folder as the workspace. Read `docs/design.md` before writing code.
 
 | Path | Role |
 |---|---|
-| **This repo** | The engine. Garden + cut-away + interact + DayClock. |
+| **This repo** | The engine. Walkable garden through PR10. |
 | `~/dragon16` | Historical **prototype**. Read-only. |
 
 ```sh
 /Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite
-/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite --headless --script res://tests/test_clock.gd
+/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite --headless --script res://tests/test_actor.gd
 /Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite -- --shot=/tmp/garden.png --frames=20
 ```
 
@@ -23,15 +23,21 @@ Godot is `4.7.1` at `/Applications/Godot.app`. `--shot` needs a real window (not
 ## Product locks (do not reopen)
 
 - Name is **Splite**. Camera: height 6.6, SW 0.82 / 0.82, FOV 60°.
-- K17 black void. DayClock writes `ambient_light_*` only, never `background_color`.
-- 16:00 is `AFTERNOON_SUN` exactly. Sun elevation never above 55°.
+- K17 black void. DayClock never writes `background_color`.
+- 16:00 is `AFTERNOON_SUN`. No SKY volume yet.
 
-## PR1–PR9 — done
+## PR1–PR10 — done
 
-PR8: `e1ee378`. PR9: `DayClock` keyframed path, `[` `]` scrub ±0.5 h, lantern sway + ≤12 radial drops. Default `paused = true`. Lantern on at night or in the cellar. Cellar torch is still mesh-only.
+| PR | SHA | What |
+|---|---|---|
+| 1–4 | `c6bef98` | host, resources, renderer, world/camera |
+| 5–7 | `7b35d8c` | actor, §8 garden, cut-away |
+| 8 | `e1ee378` | interactables, door SEQUENCE, WorldHint |
+| 9 | `5bf6922` | DayClock, lantern, `[` `]` |
+| 10 | (this commit) | DistortionField + SplatVolume. Pond HEAT + ATMOS foam. Trunk CANOPY. No SKY. |
 
-## After PR9
+## After PR10
 
-PR10 distortion + volumes. Pond marker gets HEAT + ATMOS foam. Trunk marker gets a proc `SplatVolume` (CANOPY). No SKY volume.
+PR11a cone-render. PR12 garden style + tour. Fitted `tree_hero` is a drop-in on the canopy volume.
 
 MAPS: **§8**. Cut-away: **§3.3**. Environment: **K17**. Clock: **§2.5**. Volumes: **§2.4**.
