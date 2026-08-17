@@ -10,9 +10,11 @@ func _enter_tree() -> void:
 	add_custom_type("Interactable", "Node3D", preload("interaction/interactable.gd"), null)
 	add_custom_type("TileInteractable", "Node3D", preload("interaction/tile_interactable.gd"), null)
 	add_custom_type("WorldHint", "Node3D", preload("interaction/world_hint.gd"), null)
+	add_custom_type("DayClock", "Node", preload("core/day_clock.gd"), null)
 
 
 func _exit_tree() -> void:
+	remove_custom_type("DayClock")
 	remove_custom_type("WorldHint")
 	remove_custom_type("TileInteractable")
 	remove_custom_type("Interactable")

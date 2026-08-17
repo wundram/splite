@@ -17,6 +17,8 @@ signal state_finished(cell_key: Vector3i, from: StringName, to: StringName)
 ## Points toward the sun. Default is a 4pm WNW sun (~33° elevation).
 @export var sun_dir: Vector3 = AFTERNOON_SUN:
 	set(v):
+		if sun_dir.distance_to(v) > 0.002:
+			_needs_drops = true
 		sun_dir = v
 		_needs_lights = true
 @export var cutaway_enabled: bool = true
@@ -37,6 +39,11 @@ var _surface_mat: ShaderMaterial
 var _needs_static := true
 var _needs_dyn := false
 var _needs_lights := true
+var _needs_drops := false
+var clock: DayClock
+var lantern: Lantern
+var sun_light: DirectionalLight3D
+var environment: Environment
 var _actor_cloud: SplatCloud
 var _actor_xform := Transform3D.IDENTITY
 var _actor_mod := Color.WHITE
@@ -224,6 +231,11 @@ func refresh(time: float, delta: float) -> void:
 	if _batch == null:
 		return
 	_tick_transitions(delta)
+	if clock:
+		clock.advance(delta)
+		_apply_clock()
+	if lantern:
+		lantern.tick(delta)
 	_update_cut_origin(delta)
 	var origin := cut_origin()
 	var inner := cutaway_inner
@@ -239,6 +251,10 @@ func refresh(time: float, delta: float) -> void:
 		_rebuild_hulls()
 		_rebuild_static_drops()
 		_needs_static = false
+		_needs_drops = false
+	elif _needs_drops:
+		_rebuild_static_drops()
+		_needs_drops = false
 	if _needs_dyn:
 		_rebuild_dynamic(time)
 		_needs_dyn = false
@@ -435,14 +451,39 @@ func _apply_surface_cutaway(origin: Vector3, inner: float, outer: float) -> void
 	_surface_mat.set_shader_parameter("cut_head", _ACTOR_HEAD)
 
 
+func _apply_clock() -> void:
+	if clock == null:
+		return
+	sun_dir = clock.light_dir()
+	if sun_light:
+		sun_light.basis = Basis.looking_at(-_sun(), Vector3.UP)
+		sun_light.light_color = clock.light_color()
+		sun_light.light_energy = clock.light_energy()
+	if environment:
+		environment.ambient_light_color = clock.ambient_color()
+		environment.ambient_light_energy = clock.ambient_energy()
+
+
 func _apply_lights() -> void:
-	_batch.set_lighting(
-		_sun(),
-		Color(1.0, 0.78, 0.52),
-		1.35,
-		Color(0.55, 0.50, 0.48),
-		0.28
-	)
+	var col := Color(1.0, 0.78, 0.52)
+	var energy := 1.35
+	var amb := Color(0.55, 0.50, 0.48)
+	var amb_e := 0.28
+	if clock:
+		col = clock.light_color()
+		energy = clock.light_energy()
+		amb = clock.ambient_color()
+		amb_e = clock.ambient_energy()
+	var lpos := Vector3.ZERO
+	var lcol := Color(1.0, 0.72, 0.38)
+	var lenergy := 0.0
+	var lrange := 5.5
+	if lantern != null and lantern.enabled:
+		lpos = lantern.world_pos()
+		lcol = lantern.color
+		lenergy = lantern.energy
+		lrange = lantern.omni_range
+	_batch.set_lighting(_sun(), col, energy, amb, amb_e, lpos, lcol, lenergy, lrange)
 	_needs_lights = false
 
 
@@ -503,17 +544,49 @@ func _update_actor_drop() -> void:
 	if _drops == null:
 		return
 	_drops.clear_dynamic()
-	if _actor_cloud == null:
+	if _actor_cloud != null:
+		var origin := _actor_xform.origin
+		var rec_y := _receiver_y(
+			int(round(origin.y / maxf(level_height, 0.001))),
+			int(round(origin.x)),
+			int(round(origin.z))
+		)
+		var pos := origin + _ground_offset(0.72)
+		pos.y = rec_y + 0.035
+		_drops.add_dynamic(pos, Vector2(0.28, 0.22), 0.38, true)
+	_add_lantern_drops()
+
+
+func _add_lantern_drops() -> void:
+	if lantern == null or not lantern.enabled or _drops == null:
 		return
-	var origin := _actor_xform.origin
-	var rec_y := _receiver_y(
-		int(round(origin.y / maxf(level_height, 0.001))),
-		int(round(origin.x)),
-		int(round(origin.z))
-	)
-	var pos := origin + _ground_offset(0.72)
-	pos.y = rec_y + 0.035
-	_drops.add_dynamic(pos, Vector2(0.28, 0.22), 0.38, true)
+	var lp := lantern.world_pos()
+	var hits: Array[Dictionary] = []
+	for key in cells:
+		var cell: Cell = cells[key]
+		if not _room_active(cell.room):
+			continue
+		var st := _state(cell)
+		if st == null or not st.receive_shadow:
+			continue
+		var origin := cell_origin(key.x, key.y, key.z)
+		var rec_y := origin.y + st.hull.position.y + st.hull.size.y
+		var rec := Vector3(origin.x, rec_y, origin.z)
+		var r := lp.distance_to(rec)
+		if r > lantern.drop_radius or r < 0.08:
+			continue
+		hits.append({
+			"r": r,
+			"rec": rec,
+			"half": Vector2(st.hull.size.x, st.hull.size.z) * 0.42,
+		})
+	hits.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return float(a.r) < float(b.r))
+	var n := mini(hits.size(), 12)
+	for i in n:
+		var h: Dictionary = hits[i]
+		var r: float = h.r
+		var str := clampf(0.42 / (r * r), 0.08, 0.50)
+		_drops.add_radial(h.rec + Vector3(0, 0.03, 0), h.half, str)
 
 
 func _rebuild_hulls() -> void:

@@ -1,7 +1,7 @@
 # Resume here
 
 **Repo:** `/Users/wundram/dev/splite` (`main`)  
-**Next work:** **PR9** — DayClock, high-latitude sun, lantern.
+**Next work:** **PR10** — distortion fields + environmental volumes.
 
 Open this folder as the workspace. Read `docs/design.md` before writing code.
 
@@ -9,12 +9,12 @@ Open this folder as the workspace. Read `docs/design.md` before writing code.
 
 | Path | Role |
 |---|---|
-| **This repo** | The engine. Walkable §8 garden + cut-away + interactables. |
+| **This repo** | The engine. Garden + cut-away + interact + DayClock. |
 | `~/dragon16` | Historical **prototype**. Read-only. |
 
 ```sh
 /Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite
-/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite --headless --script res://tests/test_actor.gd
+/Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite --headless --script res://tests/test_clock.gd
 /Applications/Godot.app/Contents/MacOS/Godot --path ~/dev/splite -- --shot=/tmp/garden.png --frames=20
 ```
 
@@ -23,15 +23,15 @@ Godot is `4.7.1` at `/Applications/Godot.app`. `--shot` needs a real window (not
 ## Product locks (do not reopen)
 
 - Name is **Splite**. Camera: height 6.6, SW 0.82 / 0.82, FOV 60°.
-- K17 black void. No fill light, no ground plane, fog off.
-- Color is albedo. DayClock must never write `background_color`.
+- K17 black void. DayClock writes `ambient_light_*` only, never `background_color`.
+- 16:00 is `AFTERNOON_SUN` exactly. Sun elevation never above 55°.
 
-## PR1–PR8 — done
+## PR1–PR9 — done
 
-PR5–PR7: `7b35d8c`. PR8: `Interactable` / `TileInteractable` / `WorldHint`. Cellar door is `closed → opening (4 frames @ 10 fps) → open`. Ember is an `Interactable`. Corner prompt is gone; one `WorldHint` retargets. Upstairs door stays a wall.
+PR8: `e1ee378`. PR9: `DayClock` keyframed path, `[` `]` scrub ±0.5 h, lantern sway + ≤12 radial drops. Default `paused = true`. Lantern on at night or in the cellar. Cellar torch is still mesh-only.
 
-## After PR8
+## After PR9
 
-PR9 DayClock + lantern (`[` `]` scrub). PR10 distortion + volumes.
+PR10 distortion + volumes. Pond marker gets HEAT + ATMOS foam. Trunk marker gets a proc `SplatVolume` (CANOPY). No SKY volume.
 
-MAPS: **§8**. Cut-away: **§3.3**. Environment: **K17**. Clock: **§2.5**.
+MAPS: **§8**. Cut-away: **§3.3**. Environment: **K17**. Clock: **§2.5**. Volumes: **§2.4**.

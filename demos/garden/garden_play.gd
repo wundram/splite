@@ -38,14 +38,22 @@ func _process(delta: float) -> void:
 		garden.try_move(Vector3(step.x, 0, step.y))
 	if Input.is_action_just_pressed("ui_accept"):
 		garden.try_interact()
+	if garden.clock:
+		if Input.is_action_just_pressed("splite_time_back"):
+			garden.clock.scrub(-0.5)
+		if Input.is_action_just_pressed("splite_time_fwd"):
+			garden.clock.scrub(0.5)
 	garden.tick(delta)
 	if objective:
 		objective.text = garden.objective()
 	if meta:
 		var fps := Engine.get_frames_per_second()
 		var ms := (1000.0 / float(fps)) if fps > 0 else 0.0
-		meta.text = "WASD move   E interact   F3 cut   %d fps  %.2f ms  %d g  level %.2f" % [
-			fps, ms, garden.world.gaussian_count(), garden.elev
+		var clock_s := ""
+		if garden.clock:
+			clock_s = "  %04.1fh" % garden.clock.time
+		meta.text = "WASD move   E interact   [ ] time   F3 cut   %d fps  %.2f ms  %d g  level %.2f%s" % [
+			fps, ms, garden.world.gaussian_count(), garden.elev, clock_s
 		]
 
 
@@ -72,6 +80,8 @@ func _bind_keys() -> void:
 		"ui_up": KEY_W,
 		"ui_down": KEY_S,
 		"ui_accept": KEY_E,
+		"splite_time_back": KEY_BRACKETLEFT,
+		"splite_time_fwd": KEY_BRACKETRIGHT,
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

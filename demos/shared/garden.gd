@@ -68,6 +68,10 @@ var ember: MeshInstance3D
 var door: TileInteractable
 var ember_item: Interactable
 var hint: WorldHint
+var clock: DayClock
+var lantern: Lantern
+var _sun_node: DirectionalLight3D
+var _env: Environment
 var player_level := 0
 var elev := 0.0
 var current_run = null
@@ -97,6 +101,7 @@ func build() -> void:
 	actor.name = "Player"
 	actor.splite = ProcCatalog.player_splite()
 	add_child(actor)
+	_spawn_clock()
 
 	cam = SplatCameraRig.new()
 	cam.name = "Cam"
@@ -134,6 +139,7 @@ func tick(delta: float) -> void:
 		ember.visible = (not ember_taken) and world.active_rooms.has(&"CELLAR_IN")
 	if ember_item:
 		ember_item.enabled = (not ember_taken) and world.active_rooms.has(&"CELLAR_IN")
+	_sync_lantern()
 	world.set_actor(actor.current_cloud(), actor.current_xform())
 	world.refresh(_time, delta)
 	if hint:
@@ -259,6 +265,31 @@ func _update_room() -> void:
 		torch.visible = world.active_rooms.has(&"CELLAR_IN")
 	if ember_item:
 		ember_item.enabled = (not ember_taken) and world.active_rooms.has(&"CELLAR_IN")
+	_sync_lantern()
+
+
+func _sync_lantern() -> void:
+	if lantern == null:
+		return
+	var dark := world != null and world.active_rooms.has(&"CELLAR_IN")
+	var night := clock != null and clock.is_night()
+	lantern.enabled = night or dark
+
+
+func _spawn_clock() -> void:
+	clock = DayClock.new()
+	clock.name = "Clock"
+	clock.time = 16.0
+	clock.paused = true
+	add_child(clock)
+	lantern = Lantern.new()
+	lantern.name = "Lantern"
+	actor.add_child(lantern)
+	world.clock = clock
+	world.lantern = lantern
+	world.sun_light = _sun_node
+	world.environment = _env
+	_sync_lantern()
 
 
 func _door_is_open() -> bool:
@@ -365,6 +396,7 @@ func _add_environment() -> void:
 	sun.light_energy = 1.35
 	sun.shadow_enabled = false
 	add_child(sun)
+	_sun_node = sun
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	var env := Environment.new()
@@ -380,6 +412,7 @@ func _add_environment() -> void:
 	env.ssao_radius = 1.2
 	env.ssao_intensity = 1.4
 	we.environment = env
+	_env = env
 	add_child(we)
 
 

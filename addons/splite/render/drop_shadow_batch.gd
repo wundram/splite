@@ -35,6 +35,10 @@ func add_dynamic(pos: Vector3, half: Vector2, strength: float, blob: bool) -> vo
 	_dyn_dirty = true
 
 
+func add_radial(pos: Vector3, half: Vector2, strength: float) -> void:
+	add_dynamic(pos, half, clampf(strength, 0.0, 0.55), true)
+
+
 func commit() -> void:
 	_ensure()
 	if _static_dirty:
