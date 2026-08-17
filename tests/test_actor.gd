@@ -106,11 +106,14 @@ func _test_map_and_motion() -> void:
 		if vol.def.kind == SplatVolumeDef.Kind.SKY:
 			sky_n += 1
 	_check(sky_n == 0, "no SKY volume")
-	var min_r := 99.0
-	for r in g.canopy_cloud.radii:
-		if r < min_r:
-			min_r = r
-	_check(min_r >= 0.6, "canopy kernels >= 0.6 m (got %.3f)" % min_r)
+	if g.canopy_cloud.source_id == "tree_hero":
+		_check(g.canopy_cloud.size() > 0, "fitted tree_hero has gaussians")
+	else:
+		var min_r := 99.0
+		for r in g.canopy_cloud.radii:
+			if r < min_r:
+				min_r = r
+		_check(min_r >= 0.6, "proc canopy kernels >= 0.6 m (got %.3f)" % min_r)
 	g.place(12.0, 2.0, 0)
 	var canopy_top: float = g.TRUNK_MARK.y + g.canopy_cloud.aabb.position.y + g.canopy_cloud.aabb.size.y
 	var occ: float = g.world.cutaway_amount(

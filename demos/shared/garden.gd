@@ -103,6 +103,10 @@ func build() -> void:
 	actor = SpliteActor.new()
 	actor.name = "Player"
 	actor.splite = ProcCatalog.player_splite()
+	if ResourceLoader.exists("res://assets/splites/player.tres"):
+		var fitted_player: Splite = load("res://assets/splites/player.tres")
+		if fitted_player:
+			actor.splite = fitted_player
 	add_child(actor)
 	_spawn_clock()
 
@@ -125,6 +129,13 @@ func place(x: float, z: float, level: int, facing: float = 1.0) -> void:
 		cam.snap()
 	world.set_actor(actor.current_cloud(), actor.current_xform())
 	world.refresh(_time, 0.0)
+
+
+func slide(x: float, z: float, level: int) -> void:
+	player_level = level
+	elev = float(level)
+	current_run = null
+	actor.position = Vector3(x, world.floor_y(elev), z)
 
 
 func set_walking(on: bool) -> void:
@@ -398,6 +409,10 @@ func _add_volumes_and_field() -> void:
 	world.volumes.append(foam_volume)
 
 	var cdef := ProcCatalog.canopy_volume_def()
+	if ResourceLoader.exists("res://assets/clouds/tree_hero.tres"):
+		var fitted: SplatCloud = load("res://assets/clouds/tree_hero.tres")
+		if fitted:
+			cdef.cloud = fitted
 	canopy_cloud = cdef.cloud
 	canopy_volume = SplatVolume.new()
 	canopy_volume.name = "Canopy"

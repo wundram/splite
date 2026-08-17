@@ -32,13 +32,21 @@ Headless shot:
 /Applications/Godot.app/Contents/MacOS/Godot --path . -- --shot=/tmp/garden.png --frames=20
 ```
 
+Feature tour (no input, quits 0):
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --path . res://demos/tour/tour.tscn
+/Applications/Godot.app/Contents/MacOS/Godot --path . res://demos/tour/tour.tscn -- --hold-scale=0.25
+```
+
 ## Layout
 
 | Path | What |
 |---|---|
 | `addons/splite/` | The plugin. This is the engine. |
 | `addons/splite/editor/` | Empty until a tile painter. |
-| `demos/garden/` | Walkable clover slab + stair (main scene). |
-| `tools/pipeline/` | Asset pipeline CLI (later PRs). |
-| `assets/` | Source models, clouds, tiles (later PRs). |
+| `demos/garden/` | Walkable garden style demo (main scene). |
+| `demos/tour/` | Captioned feature tour; `--hold-scale=0.25` for CI. |
+| `tools/pipeline/` | Cone-render → COLMAP pack → PLY import. |
+| `assets/` | Checked-in clouds (`tree_hero.tres`) and attributions. |
 | `docs/design.md` | Architecture (start here). |
