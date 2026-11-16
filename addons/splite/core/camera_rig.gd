@@ -79,7 +79,9 @@ func _place(instant: bool, delta: float = 0.0) -> void:
 func _look() -> void:
 	if camera == null or not camera.is_inside_tree():
 		return
-	var focus := _focus()
+	# Follow the smoothed camera focus, preserving the locked angle during pans.
+	# Looking at the unsmoothed actor would pitch/yaw on every movement frame.
+	var focus := global_position - offset()
 	# World -Z is "north" / screen-up. Using Vector3.UP here is degenerate
 	# when the view is nearly vertical and yaws the map 45°.
 	camera.look_at(focus, Vector3(0.0, 0.0, -1.0))

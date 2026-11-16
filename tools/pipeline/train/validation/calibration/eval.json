@@ -1,0 +1,17 @@
+{
+  "experiment_name": "splite",
+  "method_name": "splatfacto",
+  "checkpoint": "/content/splite-calibration-v1/results/calibration-vs4ayz9x/splite/splatfacto/fit/nerfstudio_models/step-000000999.ckpt",
+  "results": {
+    "psnr": 21.334339141845703,
+    "psnr_std": 0.2569619119167328,
+    "ssim": 0.8873409032821655,
+    "ssim_std": 0.007462039589881897,
+    "lpips": 0.10207930207252502,
+    "lpips_std": 0.03055114485323429,
+    "num_rays_per_sec": 3513513.5,
+    "num_rays_per_sec_std": 2341520.0,
+    "fps": 53.611961364746094,
+    "fps_std": 35.728759765625
+  }
+}

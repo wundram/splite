@@ -1,0 +1,2 @@
+# Capture packing and regression tests; Blender uses its bundled Python.
+Pillow>=10.3,<13

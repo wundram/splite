@@ -1,10 +1,11 @@
+# Planning metadata, not yet consumed by the CLI. Fixture is not trainable.
+# Choose and prepare a source from docs/art-direction.md, then record provenance.
 id = "tree_hero"
 source = "builtin:cube"
-license = "CC0"
-url = "https://polyhaven.com/"
+license = "unspecified"
+url = ""
 kind = "canopy_volume"
 footprint_m = 1.0
 allow_overhang = true
 views = 64
 budget = 600
-# SKU: Poly Haven CC0 first (K18). Cube fixture until the tree is picked.

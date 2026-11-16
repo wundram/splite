@@ -1,19 +1,20 @@
-# Pinned train host. Fill the triple the first time this runs on CUDA.
-# Record: `ns-train --version`, gsplat, torch, CUDA.
+# CUDA baseline validated by a real calibration training/evaluation/export run.
+# Nerfstudio 1.1.5 requires gsplat 1.4.0 in upstream pyproject.toml.
+nerfstudio: 1.1.5
+gsplat: 1.4.0
+torch: 2.11.0+cu128
+cuda: 12.8
+validation: calibration-fit-eval-export-import-passed
+# Colab writes pip freeze + GPU/CUDA information; run.json records core versions.
 
-ns-train: unset
-gsplat: unset
-torch: unset
-cuda: unset
-nerfstudio: unset
+# Observed failure: latest Colab Python 3.13.15 cannot resolve Open3D.
+colab-runtime-candidate: 2026.07
+python-candidate: 3.12
 
-dataparser: colmap
-masks_flag: --masks-path
-images_dir: images
-vis: none
-# Method flags MUST come before the dataparser name.
-cli: ns-train splatfacto [method] --vis none --data <ns> colmap --masks-path masks
+# Observed on user T4: full calibration pipeline passed; garden quality pending.
+observed-python: 3.12.13
+observed-torch: 2.11.0+cu128
+observed-numpy: 1.26.4
 
-# points3D.txt: RGB 128, ERROR 1, empty track.
-# If the pinned pycolmap rejects empty tracks, attach dummy `1 0` and note it here.
-empty_tracks: allowed
+# Real T4 CUDA forward/backward passed after a two-worker extension build.
+max-jobs: 2

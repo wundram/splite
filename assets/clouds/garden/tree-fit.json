@@ -1,0 +1,230 @@
+{
+  "source_sha256": "b58968b9426bedc70a944dc5cb3e151f205bd217bd6b338caed7bcbcc1abe0f7",
+  "input_count": 8000,
+  "budget": 8000,
+  "steps": 2500,
+  "training_frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    28,
+    29,
+    30,
+    31
+  ],
+  "held_out_frames": [
+    0,
+    9,
+    18,
+    27
+  ],
+  "selection": "summed alpha/transmittance contribution over training views",
+  "versions": {
+    "torch": "2.11.0+cu128"
+  },
+  "capture_recipe": {
+    "id": "garden_tree_sage",
+    "source": "/Users/wundram/dev/splite/assets/sources/garden/garden_tree_sage.blend",
+    "license": "CC0-1.0",
+    "url": "https://quaternius.com/packs/ultimatestylizednature.html",
+    "kind": "canopy_volume",
+    "source_sha256": "b01049573e167aeef3d58923248736913d0fca24f49226a82cdb1dba0427a136",
+    "blender_hash": "e1743a0317bc",
+    "frame": 1,
+    "fixture": false,
+    "color_mode": "unlit-base-color-srgb",
+    "tile_meters": 2.5,
+    "views": 32,
+    "resolution": 384,
+    "normalization": {
+      "offset_blender": [
+        -0.005105376243591309,
+        -0.009954273700714111,
+        -0.0004049055278301239
+      ],
+      "scale": 0.8071989693235816
+    },
+    "aabb": {
+      "min": [
+        -1.25,
+        0.0,
+        -1.035834789276123
+      ],
+      "max": [
+        1.25,
+        2.405496597290039,
+        1.035834789276123
+      ]
+    }
+  },
+  "normal_supervision": true,
+  "random_seed": 42,
+  "full": {
+    "frames": [
+      {
+        "frame": 0,
+        "psnr": 27.821664810180664,
+        "foreground_mae": 0.027457570657134056,
+        "alpha_mae": 0.013934610411524773,
+        "ssim": 0.938643217086792,
+        "normal_mae": 0.05159597843885422
+      },
+      {
+        "frame": 9,
+        "psnr": 30.409631729125977,
+        "foreground_mae": 0.02073129266500473,
+        "alpha_mae": 0.00880955159664154,
+        "ssim": 0.9573405385017395,
+        "normal_mae": 0.052408378571271896
+      },
+      {
+        "frame": 18,
+        "psnr": 31.22542953491211,
+        "foreground_mae": 0.017036698758602142,
+        "alpha_mae": 0.008587234653532505,
+        "ssim": 0.96527099609375,
+        "normal_mae": 0.050959423184394836
+      },
+      {
+        "frame": 27,
+        "psnr": 31.833534240722656,
+        "foreground_mae": 0.015280283987522125,
+        "alpha_mae": 0.007563034538179636,
+        "ssim": 0.9701724052429199,
+        "normal_mae": 0.050671663135290146
+      }
+    ],
+    "mean": {
+      "psnr": 30.32256507873535,
+      "foreground_mae": 0.020126461517065763,
+      "alpha_mae": 0.009723607799969614,
+      "ssim": 0.9578567892313004,
+      "normal_mae": 0.051408860832452774
+    }
+  },
+  "selected": {
+    "frames": [
+      {
+        "frame": 0,
+        "psnr": 27.821664810180664,
+        "foreground_mae": 0.027457570657134056,
+        "alpha_mae": 0.013934610411524773,
+        "ssim": 0.938643217086792,
+        "normal_mae": 0.05159597843885422
+      },
+      {
+        "frame": 9,
+        "psnr": 30.409631729125977,
+        "foreground_mae": 0.02073129266500473,
+        "alpha_mae": 0.00880955159664154,
+        "ssim": 0.9573405385017395,
+        "normal_mae": 0.052408378571271896
+      },
+      {
+        "frame": 18,
+        "psnr": 31.22542953491211,
+        "foreground_mae": 0.017036698758602142,
+        "alpha_mae": 0.008587234653532505,
+        "ssim": 0.96527099609375,
+        "normal_mae": 0.050959423184394836
+      },
+      {
+        "frame": 27,
+        "psnr": 31.833534240722656,
+        "foreground_mae": 0.015280283987522125,
+        "alpha_mae": 0.007563034538179636,
+        "ssim": 0.9701724052429199,
+        "normal_mae": 0.050671663135290146
+      }
+    ],
+    "mean": {
+      "psnr": 30.32256507873535,
+      "foreground_mae": 0.020126461517065763,
+      "alpha_mae": 0.009723607799969614,
+      "ssim": 0.9578567892313004,
+      "normal_mae": 0.051408860832452774
+    }
+  },
+  "refined": {
+    "frames": [
+      {
+        "frame": 0,
+        "psnr": 28.371065139770508,
+        "foreground_mae": 0.025484224781394005,
+        "alpha_mae": 0.012907730415463448,
+        "ssim": 0.9420081377029419,
+        "normal_mae": 0.02510678395628929
+      },
+      {
+        "frame": 9,
+        "psnr": 30.790674209594727,
+        "foreground_mae": 0.01976766437292099,
+        "alpha_mae": 0.008301210589706898,
+        "ssim": 0.958798885345459,
+        "normal_mae": 0.02501489967107773
+      },
+      {
+        "frame": 18,
+        "psnr": 31.612117767333984,
+        "foreground_mae": 0.016215134412050247,
+        "alpha_mae": 0.008360086940228939,
+        "ssim": 0.9676205515861511,
+        "normal_mae": 0.021764351055026054
+      },
+      {
+        "frame": 27,
+        "psnr": 32.54263687133789,
+        "foreground_mae": 0.01357246469706297,
+        "alpha_mae": 0.007146930787712336,
+        "ssim": 0.9753696918487549,
+        "normal_mae": 0.02120191790163517
+      }
+    ],
+    "mean": {
+      "psnr": 30.829123497009277,
+      "foreground_mae": 0.018759872065857053,
+      "alpha_mae": 0.009178989683277905,
+      "ssim": 0.9609493166208267,
+      "normal_mae": 0.02327198814600706
+    }
+  },
+  "elapsed_seconds": 20.16076378300022,
+  "training_iterations": 4000,
+  "visibility_refinement_iterations": 1500,
+  "normal_refinement_iterations": 2500,
+  "resource_sha256": "e9c49f7ac2ebe4ecaa21ed6c0c89bbe5459b7ba817a34ee3214ffd1e7f514ec2",
+  "refined_ply_sha256": "dd193712978592b39325fef88a6041ac91bdf857ceb2b691a60a5254f7fc67df",
+  "original_full_fit_metrics": {
+    "psnr": 31.424715042114258,
+    "psnr_std": 1.956304907798767,
+    "ssim": 0.9634484052658081,
+    "ssim_std": 0.014346596784889698,
+    "lpips": 0.038940832018852234,
+    "lpips_std": 0.011597726494073868,
+    "num_rays_per_sec": 4210203.5,
+    "num_rays_per_sec_std": 2949096.75,
+    "fps": 28.552270889282227,
+    "fps_std": 19.99984359741211
+  }
+}

@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
+import random
 import math
 import struct
 import sys
@@ -55,36 +57,18 @@ def look_at_c2w(eye, target=(0.0, 0.0, 0.0), up=(0.0, 1.0, 0.0)):
 
 def hemisphere_cameras(tile_meters: float, views: int):
     """Cameras already in the OpenGL Y-up frame. Never below 55°."""
-    if views >= 64:
-        n_az = 16
-    elif views >= 32:
-        n_az = 8
-    else:
-        n_az = max(2, views // 4)
-    dist = 2.35 * max(tile_meters, 0.2)
+    if views < 1 or tile_meters <= 0:
+        raise ValueError("views and tile-meters must be positive")
     cams = []
-    for el_deg in ELEVATIONS_DEG:
-        el = math.radians(el_deg)
-        for i in range(n_az):
-            az = (2.0 * math.pi * i) / n_az
-            eye = (
-                dist * math.cos(el) * math.sin(az),
-                dist * math.sin(el),
-                dist * math.cos(el) * math.cos(az),
-            )
-            cams.append(look_at_c2w(eye))
-    if views >= 16:
-        el = math.radians(75.0)
-        d2 = dist / 1.4
-        for i in range(4):
-            az = (2.0 * math.pi * i) / 4.0 + 0.4
-            eye = (
-                d2 * math.cos(el) * math.sin(az),
-                d2 * math.sin(el),
-                d2 * math.cos(el) * math.cos(az),
-            )
-            cams.append(look_at_c2w(eye))
-    return cams[:views] if views < len(cams) else cams
+    dist = 2.35 * max(tile_meters, 0.2)
+    # Interleave elevation rings so small captures still cover the entire cone.
+    for i in range(views):
+        el = math.radians(ELEVATIONS_DEG[i % len(ELEVATIONS_DEG)])
+        az = i * math.pi * (3.0 - math.sqrt(5.0))
+        cams.append(look_at_c2w((dist * math.cos(el) * math.sin(az),
+                                dist * math.sin(el),
+                                dist * math.cos(el) * math.cos(az))))
+    return cams
 
 
 def camera_elevation_deg(c2w) -> float:
@@ -205,14 +189,18 @@ def write_capture(out_dir: Path, cams, points, tile_meters: float, views: int, r
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Cone-render a tile from a top-down hemisphere.")
     p.add_argument("--out", required=True)
+    p.add_argument("--source", help="Import a .glb/.gltf or .blend; otherwise use the open Blender scene")
+    p.add_argument("--frame", type=int, default=1, help="Evaluated animation frame")
+    p.add_argument("--seed-points", type=int, default=4096)
     p.add_argument("--tile-meters", type=float, default=1.0)
     p.add_argument("--views", type=int, default=64)
     p.add_argument("--resolution", type=int, default=800)
+    p.add_argument("--material-pass", choices=("albedo", "normals"), default="albedo")
     p.add_argument("--allow-overhang", action="store_true")
     p.add_argument("--fixture", action="store_true", help="Write a built-in cube capture (no bpy).")
     p.add_argument("--id", default="tree_hero")
-    p.add_argument("--license", default="CC0")
-    p.add_argument("--url", default="https://polyhaven.com/")
+    p.add_argument("--license", default="unspecified")
+    p.add_argument("--url", default="")
     return p.parse_args(argv)
 
 
@@ -221,7 +209,11 @@ def main(argv=None) -> int:
     if "--" in argv:
         argv = argv[argv.index("--") + 1 :]
     args = parse_args(argv)
+    if args.resolution < 16 or args.seed_points < 4:
+        raise ValueError("resolution must be >=16 and seed-points >=4")
     out = Path(args.out)
+    if out.exists() and any(out.iterdir()):
+        raise ValueError(f"Capture directory must be empty: {out}")
     cams = hemisphere_cameras(args.tile_meters, args.views)
     recipe = {
         "id": args.id,
@@ -230,60 +222,188 @@ def main(argv=None) -> int:
         "url": args.url,
         "kind": "canopy_volume",
     }
-    if args.fixture or "bpy" not in sys.modules:
+    if args.fixture:
         pts = cube_points_opengl(args.tile_meters)
         write_capture(out, cams, pts, args.tile_meters, args.views, args.resolution, recipe)
         print(f"cone_render: fixture {len(cams)} views → {out}")
         return 0
+    try:
+        import bpy
+    except ImportError:
+        print("cone_render: real capture requires Blender; use --fixture only for tests", file=sys.stderr)
+        return 2
     return _run_blender(args, cams, recipe)
 
 
 def _run_blender(args, cams, recipe) -> int:
-    import bpy  # type: ignore
+    import bpy
+    from mathutils import Matrix, Vector
+    import bisect
 
-    # Sit the evaluated mesh on Z=0, center XY, scale footprint to tile-meters,
-    # then emit OpenGL-frame cameras + points. Lighting: no scene lights,
-    # black transparent film, Standard view transform.
+    if args.source:
+        source = Path(args.source).resolve()
+        if source.suffix.lower() == ".blend":
+            bpy.ops.wm.open_mainfile(filepath=str(source))
+        elif source.suffix.lower() in (".glb", ".gltf"):
+            bpy.ops.object.select_all(action="SELECT")
+            bpy.ops.object.delete(use_global=False)
+            bpy.ops.import_scene.gltf(filepath=str(source))
+        else:
+            raise ValueError("Source must be .blend, .glb, or .gltf")
+    else:
+        source = Path(bpy.data.filepath) if bpy.data.filepath else None
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE_NEXT" if hasattr(bpy.types, "EEVEE") else scene.render.engine
+    scene.frame_set(args.frame)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    # Bake the evaluated pose and modifiers, including instanced geometry, into
+    # world coordinates. Never normalize bones/parents separately from meshes.
+    baked = []
+    for instance in depsgraph.object_instances:
+        obj = instance.object
+        if obj.type != "MESH" or obj.hide_render:
+            continue
+        mesh = bpy.data.meshes.new_from_object(obj, depsgraph=depsgraph)
+        mesh.transform(instance.matrix_world)
+        baked.append(mesh)
+    if not baked:
+        raise ValueError("Source contains no renderable meshes")
+    coords = [v.co.copy() for mesh in baked for v in mesh.vertices]
+    lo = Vector(tuple(min(v[i] for v in coords) for i in range(3)))
+    hi = Vector(tuple(max(v[i] for v in coords) for i in range(3)))
+    span = max(hi.x - lo.x, hi.y - lo.y)
+    if span <= 1e-6:
+        raise ValueError("Source has zero footprint")
+    scale = args.tile_meters / span
+    offset = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z))
+    for obj in list(scene.objects):
+        obj.hide_render = True
+    materials = set()
+    points = []
+    triangles, cumulative = [], []
+    area = 0.0
+    for mesh in baked:
+        for v in mesh.vertices:
+            v.co = (v.co - offset) * scale
+            points.append(blender_to_opengl(v.co))
+        mesh.calc_loop_triangles()
+        for tri in mesh.loop_triangles:
+            a, b, c = [mesh.vertices[i].co.copy() for i in tri.vertices]
+            weight = (b - a).cross(c - a).length / 2
+            if weight > 0:
+                area += weight
+                triangles.append((a, b, c))
+                cumulative.append(area)
+        obj = bpy.data.objects.new("capture_mesh", mesh)
+        scene.collection.objects.link(obj)
+        if not mesh.materials:
+            mat = bpy.data.materials.new("capture_default")
+            mat.diffuse_color = (0.5, 0.5, 0.5, 1)
+            mesh.materials.append(mat)
+        materials.update(m for m in mesh.materials if m)
+    if not triangles:
+        raise ValueError("Source contains no nondegenerate triangles")
+    # Preserve texture and vertex-color networks feeding Principled base color;
+    # emission removes baked illumination. Unsupported graphs fail explicitly.
+    for mat in materials:
+        color = tuple(mat.diffuse_color)
+        was_nodes = mat.use_nodes
+        mat.use_nodes = True
+        nodes, links = mat.node_tree.nodes, mat.node_tree.links
+        output = next((n for n in nodes if n.type == "OUTPUT_MATERIAL" and n.is_active_output), None)
+        shader = output.inputs["Surface"].links[0].from_node if output and output.inputs["Surface"].is_linked else None
+        if was_nodes and (shader is None or shader.type != "BSDF_PRINCIPLED"):
+            raise ValueError(f"Material {mat.name}: use a Principled BSDF connected directly to Material Output")
+        if output is None:
+            output = nodes.new("ShaderNodeOutputMaterial")
+        emission = nodes.new("ShaderNodeEmission")
+        base = shader.inputs["Base Color"] if was_nodes and shader else None
+        emission.inputs["Color"].default_value = base.default_value if base else color
+        if base and base.is_linked:
+            links.new(base.links[0].from_socket, emission.inputs["Color"])
+        if args.material_pass == "normals":
+            geometry = nodes.new("ShaderNodeNewGeometry")
+            split = nodes.new("ShaderNodeSeparateXYZ")
+            combine = nodes.new("ShaderNodeCombineXYZ")
+            negate = nodes.new("ShaderNodeMath"); negate.operation = 'MULTIPLY'
+            negate.inputs[1].default_value = -1
+            links.new(geometry.outputs['Normal'], split.inputs[0])
+            links.new(split.outputs['X'], combine.inputs['X'])
+            links.new(split.outputs['Z'], combine.inputs['Y'])
+            links.new(split.outputs['Y'], negate.inputs[0])
+            links.new(negate.outputs[0], combine.inputs['Z'])
+            multiply = nodes.new('ShaderNodeVectorMath'); multiply.operation = 'MULTIPLY'
+            multiply.inputs[1].default_value = (.5, .5, .5)
+            add = nodes.new('ShaderNodeVectorMath'); add.operation = 'ADD'
+            add.inputs[1].default_value = (.5, .5, .5)
+            links.new(combine.outputs[0], multiply.inputs[0])
+            links.new(multiply.outputs[0], add.inputs[0])
+            links.new(add.outputs[0], emission.inputs['Color'])
+        transparent = nodes.new("ShaderNodeBsdfTransparent")
+        mix = nodes.new("ShaderNodeMixShader")
+        alpha = shader.inputs["Alpha"] if was_nodes and shader else None
+        mix.inputs[0].default_value = alpha.default_value if alpha else color[3]
+        if alpha and alpha.is_linked:
+            links.new(alpha.links[0].from_socket, mix.inputs[0])
+        links.new(transparent.outputs[0], mix.inputs[1])
+        links.new(emission.outputs[0], mix.inputs[2])
+        links.new(mix.outputs[0], output.inputs["Surface"])
+    rng = random.Random(16)
+    seeds = []
+    for _ in range(args.seed_points):
+        a, b, c = triangles[bisect.bisect_left(cumulative, rng.random() * area)]
+        u, v = math.sqrt(rng.random()), rng.random()
+        seeds.append(blender_to_opengl((1-u)*a + u*(1-v)*b + u*v*c))
+    bounds = _aabb(points)
+    target = tuple((bounds[0][i] + bounds[1][i]) / 2 for i in range(3))
+    radius = max(_len(tuple(p[i] - target[i] for i in range(3))) for p in points)
+    distance = radius / math.sin(CAMERA_ANGLE_X / 2) * 1.15
+    fitted_cams = []
+    for cam in cams:
+        direction = _norm(tuple(cam[i][3] for i in range(3)))
+        fitted_cams.append(look_at_c2w(tuple(target[i] + direction[i] * distance for i in range(3)), target))
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = 16
     scene.render.film_transparent = True
-    scene.render.resolution_x = args.resolution
-    scene.render.resolution_y = args.resolution
+    scene.render.resolution_x = scene.render.resolution_y = args.resolution
+    scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
-    if scene.world:
-        scene.world.use_nodes = True
-        bg = scene.world.node_tree.nodes.get("Background")
-        if bg:
-            bg.inputs[0].default_value = (0, 0, 0, 1)
-            bg.inputs[1].default_value = 0.0
-    for obj in list(bpy.data.objects):
-        if obj.type == "LIGHT":
-            bpy.data.objects.remove(obj, do_unlink=True)
-    # Mesh normalize in Blender Z-up.
-    meshes = [o for o in bpy.data.objects if o.type == "MESH"]
-    if not meshes:
-        bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.5))
-        meshes = [o for o in bpy.data.objects if o.type == "MESH"]
-    coords = []
-    for o in meshes:
-        mw = o.matrix_world
-        for v in o.data.vertices:
-            p = mw @ v.co
-            coords.append((p.x, p.y, p.z))
-    xs, ys, zs = zip(*coords)
-    cx, cy = (min(xs) + max(xs)) * 0.5, (min(ys) + max(ys)) * 0.5
-    z0 = min(zs)
-    span = max(max(xs) - min(xs), max(ys) - min(ys), 1e-6)
-    scale = args.tile_meters / span
-    pts = []
-    for x, y, z in coords:
-        bx, by, bz = (x - cx) * scale, (y - cy) * scale, (z - z0) * scale
-        pts.append(blender_to_opengl((bx, by, bz)))
-    # Camera list is already OpenGL; write frames by posing a Blender camera
-    # is optional — fixture pixels are enough for the coordinate contract.
-    write_capture(Path(args.out), cams, pts, args.tile_meters, args.views, args.resolution, recipe)
-    print(f"cone_render: blender {len(cams)} views → {args.out}")
+    scene.render.image_settings.color_depth = "8"
+    scene.render.use_compositing = False
+    scene.render.use_sequencer = False
+    scene.view_settings.view_transform = "Raw" if args.material_pass == "normals" else "Standard"
+    scene.view_settings.look = "None"
+    scene.view_settings.exposure = 0
+    scene.view_settings.gamma = 1
+    camera = bpy.data.objects.new("capture_camera", bpy.data.cameras.new("capture_camera"))
+    scene.collection.objects.link(camera)
+    scene.camera = camera
+    camera.data.type = "PERSP"
+    camera.data.sensor_fit = "HORIZONTAL"
+    camera.data.angle = CAMERA_ANGLE_X
+    camera.data.clip_start = max(0.001, distance / 1000)
+    camera.data.clip_end = distance * 10
+    gl_to_blender = Matrix(((1,0,0,0), (0,0,-1,0), (0,1,0,0), (0,0,0,1)))
+    out = Path(args.out).resolve()
+    (out / "images").mkdir(parents=True, exist_ok=True)
+    frames = []
+    for i, c2w in enumerate(fitted_cams):
+        camera.matrix_world = gl_to_blender @ Matrix(c2w)
+        scene.render.filepath = str(out / "images" / f"{i:04d}.png")
+        bpy.ops.render.render(write_still=True)
+        frames.append({"file_path": f"./images/{i:04d}", "transform_matrix": c2w})
+    (out / "transforms.json").write_text(json.dumps({"camera_angle_x": CAMERA_ANGLE_X, "frames": frames}, indent=2) + "\n")
+    write_points_ply(out / "points3D.ply", seeds)
+    recipe.update({"source": str(source) if source else "unsaved:blender-scene",
+                   "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest() if source and source.is_file() else None,
+                   "blender_hash": bpy.app.build_hash.decode(), "frame": args.frame,
+                   "fixture": False, "color_mode": "world-normal-encoded-raw" if args.material_pass == "normals" else "unlit-base-color-srgb",
+                   "tile_meters": args.tile_meters, "views": len(frames), "resolution": args.resolution,
+                   "normalization": {"offset_blender": list(offset), "scale": scale},
+                   "aabb": {"min": bounds[0], "max": bounds[1]}})
+    (out / "recipe.json").write_text(json.dumps(recipe, indent=2) + "\n")
+    print(f"cone_render: rendered {len(frames)} views → {out}")
     return 0
 
 

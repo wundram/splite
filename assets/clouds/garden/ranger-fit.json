@@ -1,0 +1,230 @@
+{
+  "source_sha256": "398d442a5b25fa67e4f7e3144b7dc2af31143ad77b55845582c5279bfb984f96",
+  "input_count": 3000,
+  "budget": 3000,
+  "steps": 2500,
+  "training_frames": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    28,
+    29,
+    30,
+    31
+  ],
+  "held_out_frames": [
+    0,
+    9,
+    18,
+    27
+  ],
+  "selection": "summed alpha/transmittance contribution over training views",
+  "versions": {
+    "torch": "2.11.0+cu128"
+  },
+  "capture_recipe": {
+    "id": "player_ranger",
+    "source": "/Users/wundram/dev/splite/assets/sources/garden/player_ranger.blend",
+    "license": "CC0-1.0",
+    "url": "https://kaylousberg.itch.io/kaykit-adventurers",
+    "kind": "canopy_volume",
+    "source_sha256": "e9cad287b805f0a1e5615a42fcc8e34714b5aeef39dd64b2e1fb220388af02da",
+    "blender_hash": "e1743a0317bc",
+    "frame": 1,
+    "fixture": false,
+    "color_mode": "unlit-base-color-srgb",
+    "tile_meters": 0.7,
+    "views": 32,
+    "resolution": 384,
+    "normalization": {
+      "offset_blender": [
+        0.001089721918106079,
+        -0.014279395341873169,
+        -0.002088736044242978
+      ],
+      "scale": 0.5670538057067942
+    },
+    "aabb": {
+      "min": [
+        -0.3500000238418579,
+        0.0,
+        -0.29764097929000854
+      ],
+      "max": [
+        0.3500000238418579,
+        1.2822450399398804,
+        0.29764097929000854
+      ]
+    }
+  },
+  "normal_supervision": true,
+  "random_seed": 42,
+  "full": {
+    "frames": [
+      {
+        "frame": 0,
+        "psnr": 26.104270935058594,
+        "foreground_mae": 0.03934641554951668,
+        "alpha_mae": 0.011298847384750843,
+        "ssim": 0.9675732851028442,
+        "normal_mae": 0.02020755596458912
+      },
+      {
+        "frame": 9,
+        "psnr": 35.68729019165039,
+        "foreground_mae": 0.009825531393289566,
+        "alpha_mae": 0.00333988550119102,
+        "ssim": 0.9909594655036926,
+        "normal_mae": 0.013837773352861404
+      },
+      {
+        "frame": 18,
+        "psnr": 39.847469329833984,
+        "foreground_mae": 0.005329844541847706,
+        "alpha_mae": 0.0015204593073576689,
+        "ssim": 0.9963719248771667,
+        "normal_mae": 0.010968239046633244
+      },
+      {
+        "frame": 27,
+        "psnr": 45.53771209716797,
+        "foreground_mae": 0.0033127563074231148,
+        "alpha_mae": 0.0008123998413793743,
+        "ssim": 0.9982399344444275,
+        "normal_mae": 0.010556659661233425
+      }
+    ],
+    "mean": {
+      "psnr": 36.794185638427734,
+      "foreground_mae": 0.014453636948019266,
+      "alpha_mae": 0.0042428980086697266,
+      "ssim": 0.9882861524820328,
+      "normal_mae": 0.013892557006329298
+    }
+  },
+  "selected": {
+    "frames": [
+      {
+        "frame": 0,
+        "psnr": 26.104270935058594,
+        "foreground_mae": 0.03934641554951668,
+        "alpha_mae": 0.011298847384750843,
+        "ssim": 0.9675732851028442,
+        "normal_mae": 0.02020755596458912
+      },
+      {
+        "frame": 9,
+        "psnr": 35.68729019165039,
+        "foreground_mae": 0.009825531393289566,
+        "alpha_mae": 0.00333988550119102,
+        "ssim": 0.9909594655036926,
+        "normal_mae": 0.013837773352861404
+      },
+      {
+        "frame": 18,
+        "psnr": 39.847469329833984,
+        "foreground_mae": 0.005329844541847706,
+        "alpha_mae": 0.0015204593073576689,
+        "ssim": 0.9963719248771667,
+        "normal_mae": 0.010968239046633244
+      },
+      {
+        "frame": 27,
+        "psnr": 45.53771209716797,
+        "foreground_mae": 0.0033127563074231148,
+        "alpha_mae": 0.0008123998413793743,
+        "ssim": 0.9982399344444275,
+        "normal_mae": 0.010556659661233425
+      }
+    ],
+    "mean": {
+      "psnr": 36.794185638427734,
+      "foreground_mae": 0.014453636948019266,
+      "alpha_mae": 0.0042428980086697266,
+      "ssim": 0.9882861524820328,
+      "normal_mae": 0.013892557006329298
+    }
+  },
+  "refined": {
+    "frames": [
+      {
+        "frame": 0,
+        "psnr": 27.260799407958984,
+        "foreground_mae": 0.03330462798476219,
+        "alpha_mae": 0.009299707598984241,
+        "ssim": 0.971625030040741,
+        "normal_mae": 0.009273390285670757
+      },
+      {
+        "frame": 9,
+        "psnr": 37.03649139404297,
+        "foreground_mae": 0.008450345136225224,
+        "alpha_mae": 0.0029523654375225306,
+        "ssim": 0.9924302101135254,
+        "normal_mae": 0.0035992010962218046
+      },
+      {
+        "frame": 18,
+        "psnr": 42.145408630371094,
+        "foreground_mae": 0.0046014003455638885,
+        "alpha_mae": 0.001296438742429018,
+        "ssim": 0.9972396492958069,
+        "normal_mae": 0.002104911021888256
+      },
+      {
+        "frame": 27,
+        "psnr": 47.458282470703125,
+        "foreground_mae": 0.002946508349850774,
+        "alpha_mae": 0.0006550046382471919,
+        "ssim": 0.9987345337867737,
+        "normal_mae": 0.001482269144617021
+      }
+    ],
+    "mean": {
+      "psnr": 38.47524547576904,
+      "foreground_mae": 0.01232572045410052,
+      "alpha_mae": 0.0035508791042957455,
+      "ssim": 0.9900073558092117,
+      "normal_mae": 0.00411494288709946
+    }
+  },
+  "elapsed_seconds": 19.430772818999685,
+  "training_iterations": 4000,
+  "visibility_refinement_iterations": 1500,
+  "normal_refinement_iterations": 2500,
+  "resource_sha256": "b928404814e6561332401839838f054dade3c3956a677dba30620a3029d842dd",
+  "refined_ply_sha256": "97e23e97d85dd85737d04a554e11852a176474d95ab6c7106ff97ce5e03c0009",
+  "original_full_fit_metrics": {
+    "psnr": 42.95240020751953,
+    "psnr_std": 7.678192138671875,
+    "ssim": 0.9954178333282471,
+    "ssim_std": 0.006179556716233492,
+    "lpips": 0.005673117935657501,
+    "lpips_std": 0.006656622979789972,
+    "num_rays_per_sec": 8348464.5,
+    "num_rays_per_sec_std": 5560230.0,
+    "fps": 56.61664962768555,
+    "fps_std": 37.70772171020508
+  }
+}

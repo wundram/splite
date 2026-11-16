@@ -1,0 +1,14 @@
+{
+  "animated_walk": true,
+  "frames": 240,
+  "godot": "4.7.1-stable (official)",
+  "gpu": "Apple M1 Pro (Apple7)",
+  "mean_fps": 65.6802226997418,
+  "mean_frame_ms": 15.2252833333333,
+  "moving_character": true,
+  "p95_frame_ms": 16.001,
+  "resolution": [
+    1280,
+    800
+  ]
+}

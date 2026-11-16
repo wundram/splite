@@ -1,11 +1,12 @@
+# Planning metadata, not yet consumed by the CLI. Fixture is not trainable.
+# Choose and prepare a source from docs/art-direction.md, then record provenance.
 id = "player_walk"
 source = "builtin:cube"
-license = "CC0"
-url = "https://polyhaven.com/"
+license = "unspecified"
+url = ""
 kind = "splite"
 clip = "walk"
 footprint_m = 0.36
 views = 64
 budget = 400
 # frames = N  (one cone-fit per posed walk-cycle key)
-# SKU: Poly Haven CC0 character first (K18). Cube fixture until picked.

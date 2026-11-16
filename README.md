@@ -12,6 +12,30 @@ Prototype work that led here lives in `~/dragon16` and is historical.
 
 Design (reviewed): [`docs/design.md`](docs/design.md).
 
+## Revival status
+
+The default playable scene is [The Sleeping Garden](demos/living_garden/garden.tscn):
+a 36×30 garden with woodland slopes, raised terraces, a seeded rose hedge maze,
+climbing-rose wall tiles, two eldritch statues, reflective animated ponds and
+peaceful rabbits, birds and koi. Thirty-four trees span five forms, including a
+10.4-metre landmark pine. Five tree placements and the animated Ranger use
+trained Gaussian clouds; other new assets are meshes.
+
+The styled HUD includes a compass, live 3D character view, map and help notes.
+WASD/arrows move; E interacts; Space/Q cast verdant/moonlight spells; I toggles
+the portrait; M opens the map; H/F1 opens help; [ / ] changes time.
+[Validation and previews](demos/living_garden/validation/README.md).
+Previous demos remain at `demos/garden_expanded/garden.tscn` and
+`demos/garden/garden.tscn`.
+Start with [art direction](docs/art-direction.md), [training hosts](docs/training-backends.md)
+and the [pipeline guide](tools/pipeline/README.md). Feature completion is not
+visual acceptance.
+
+The new [fitted garden study](demos/garden_study/fitted_garden.tscn) uses an
+8,000-Gaussian tree and 3,000-Gaussian Ranger with learned normals. Run it with
+`Godot --path . res://demos/garden_study/fitted_garden.tscn` and move with WASD.
+[Validation and screenshot](tools/pipeline/train/validation/garden/README.md).
+
 ## Run
 
 Godot **4.7** is at `/Applications/Godot.app`. From the repo root:

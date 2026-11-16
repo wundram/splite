@@ -1,0 +1,14 @@
+{
+  "final_level": 2,
+  "frames": 360,
+  "godot": "4.7.1-stable (official)",
+  "gpu": "Apple M1 Pro (Apple7)",
+  "mean_fps": 123.616270373507,
+  "mean_ms": 8.08955,
+  "p95_ms": 17.428,
+  "resolution": [
+    1920,
+    1200
+  ],
+  "scenario": "moving fitted Ranger, follow camera, ascending two flights, source shadows, 2 fitted trees"
+}

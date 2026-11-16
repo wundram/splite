@@ -16,11 +16,13 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import shutil
-import struct
 import subprocess
 import sys
-import zlib
+import tempfile
+import importlib.metadata
+import hashlib
 from pathlib import Path
 
 
@@ -105,40 +107,13 @@ def read_ply_xyz(path: Path):
 
 
 def png_size_and_mask(src: Path, dst_mask: Path) -> tuple[int, int]:
-    data = src.read_bytes()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n"
-    pos = 8
-    w = h = None
-    idat = b""
-    while pos < len(data):
-        ln = struct.unpack(">I", data[pos : pos + 4])[0]
-        tag = data[pos + 4 : pos + 8]
-        chunk = data[pos + 8 : pos + 8 + ln]
-        pos += 12 + ln
-        if tag == b"IHDR":
-            w, h, bit, ctype = struct.unpack(">IIBB", chunk[:10])
-        elif tag == b"IDAT":
-            idat += chunk
-        elif tag == b"IEND":
-            break
-    raw = zlib.decompress(idat)
-    # Write L8 mask: 255 where source alpha > 8.
-    mask_raw = bytearray()
-    rowb = 1 + w * (4 if ctype == 6 else (3 if ctype == 2 else 1))
-    for y in range(h):
-        mask_raw.append(0)
-        start = y * rowb + 1
-        sl = raw[start : start + w * 4]
-        for x in range(w):
-            a = sl[x * 4 + 3] if ctype == 6 else 255
-            mask_raw.append(255 if a > 8 else 0)
-    def chunk(tag, payload):
-        return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
-    ihdr = struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0)  # L8
-    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(bytes(mask_raw), 9)) + chunk(b"IEND", b"")
-    dst_mask.parent.mkdir(parents=True, exist_ok=True)
-    dst_mask.write_bytes(png)
-    return w, h
+    from PIL import Image
+    with Image.open(src) as image:
+        rgba = image.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        dst_mask.parent.mkdir(parents=True, exist_ok=True)
+        alpha.point(lambda a: 255 if a > 8 else 0).save(dst_mask)
+        return rgba.size
 
 
 def pack(data_dir: Path) -> Path:
@@ -146,10 +121,16 @@ def pack(data_dir: Path) -> Path:
     tf = json.loads((data_dir / "transforms.json").read_text())
     angle = float(tf["camera_angle_x"])
     frames = tf["frames"]
+    if not frames:
+        raise ValueError("Capture has no frames")
+    if not 0 < angle < math.pi:
+        raise ValueError("Invalid camera angle")
     ns = data_dir / "ns"
     img_out = ns / "images"
     mask_out = ns / "masks"
     colmap = ns / "colmap" / "sparse" / "0"
+    if ns.exists():
+        raise ValueError(f"Pack destination already exists; use a fresh capture directory: {ns}")
     img_out.mkdir(parents=True, exist_ok=True)
     mask_out.mkdir(parents=True, exist_ok=True)
     colmap.mkdir(parents=True, exist_ok=True)
@@ -159,11 +140,17 @@ def pack(data_dir: Path) -> Path:
     for i, fr in enumerate(frames):
         rel = fr["file_path"]
         src = data_dir / (rel + ".png" if not rel.endswith(".png") else rel)
-        if not src.exists():
-            src = data_dir / "images" / f"{i:04d}.png"
         name = f"{i:04d}.png"
-        shutil.copy2(src, img_out / name)
+        from PIL import Image
+        with Image.open(src) as image:
+            rgba = image.convert("RGBA")
+            # Full-image loss against black supervises empty space too. A
+            # foreground-only mask would leave floaters unconstrained.
+            background = Image.new("RGBA", rgba.size, (0, 0, 0, 255))
+            Image.alpha_composite(background, rgba).convert("RGB").save(img_out / name)
         w, h = png_size_and_mask(src, mask_out / name)
+        if width is not None and (w, h) != (width, height):
+            raise ValueError("Capture images must have identical dimensions")
         width, height = w, h
         names.append((name, fr["transform_matrix"]))
 
@@ -194,32 +181,84 @@ def _which(name: str) -> str | None:
     return shutil.which(name)
 
 
-def train(ns: Path, out_ply: Path, iters: int) -> int:
-    if _which("ns-train") is None:
-        print(
-            "train_cloud: ns-train not found.\n"
-            "This step is CUDA-only. See tools/pipeline/train/versions.lock\n"
-            "and tools/pipeline/README.md (CUDA half). No Mac CPU fallback.",
-            file=sys.stderr,
-        )
-        return 2
-    out_ply.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "ns-train", "splatfacto",
-        "--max-num-iterations", str(iters),
-        "--pipeline.model.cull_alpha_thresh", "0.05",
-        "--pipeline.model.use_scale_regularization", "True",
+def training_command(ns: Path, run_dir: Path, iters: int):
+    return [
+        "ns-train", "splatfacto", "--max-num-iterations", str(iters),
+        "--output-dir", str(run_dir), "--experiment-name", "splite",
+        "--timestamp", "fit", "--vis", "tensorboard", "--viewer.quit-on-train-completion", "True",
+        "--steps-per-save", "500",
+        "--pipeline.model.cull-alpha-thresh", "0.05",
+        "--pipeline.model.use-scale-regularization", "True",
         "--pipeline.model.max-gauss-ratio", "8.0",
-        "--vis", "none",
-        "--data", str(ns),
-        "colmap", "--masks-path", "masks",
+        "--pipeline.model.sh-degree", "0",
+        "--pipeline.model.num-downscales", "0",
+        "--pipeline.model.background-color", "black",
+        "--pipeline.model.camera-optimizer.mode", "off",
+        "--data", str(ns.resolve()), "colmap",
+        "--orientation-method", "none", "--center-method", "none",
+        "--auto-scale-poses", "False", "--assume-colmap-world-coordinate-convention", "False",
+        "--downscale-factor", "1", "--eval-mode", "interval", "--eval-interval", "9",
     ]
-    print("train_cloud:", " ".join(cmd))
-    r = subprocess.run(cmd)
-    if r.returncode != 0:
-        return r.returncode
-    # Export is left to the operator when a config exists; record the dest.
-    print(f"train_cloud: export with ns-export gaussian-splat --output-dir {out_ply.parent}")
+
+
+def train(ns: Path, out_ply: Path, iters: int, budget: int = 600) -> int:
+    if any(_which(tool) is None for tool in ("ns-train", "ns-export", "ns-eval")):
+        print("train_cloud: install the CUDA environment in train/colab.ipynb; ns-train/ns-export/ns-eval required", file=sys.stderr)
+        return 2
+    if any(path.exists() for path in (out_ply, out_ply.with_suffix(".tres"), out_ply.with_suffix(".full.tres"))):
+        raise ValueError("Output already exists; choose a new output name")
+    out_ply = out_ply.resolve()
+    out_ply.parent.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix=out_ply.stem + "-", dir=out_ply.parent))
+    manifest = {"status": "started", "iterations": iters, "import_budget": budget,
+                "versions": {name: importlib.metadata.version(name) for name in ("nerfstudio", "torch", "gsplat")},
+                "capture": json.loads((ns.parent / "recipe.json").read_text())}
+    report = run_dir / "run.json"
+    report.write_text(json.dumps(manifest, indent=2) + "\n")
+    cmd = training_command(ns, run_dir, iters)
+    manifest["train_command"] = cmd
+    def run(command):
+        print("train_cloud:", " ".join(command), flush=True)
+        # Nerfstudio 1.1.5 checkpoints include NumPy optimizer scalars. PyTorch
+        # 2.6+ weights-only defaults reject these. Only these child commands read
+        # the checkpoint produced by this invocation; never set this globally.
+        kwargs = {}
+        if command[0] in ("ns-eval", "ns-export"):
+            kwargs["env"] = {**os.environ, "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD": "1"}
+        result = subprocess.run(command, **kwargs)
+        if result.returncode:
+            manifest.update(status="failed", failed_command=command, returncode=result.returncode)
+            report.write_text(json.dumps(manifest, indent=2) + "\n")
+        return result.returncode
+    rc = run(cmd)
+    if rc:
+        return rc
+    config = run_dir / "splite" / "splatfacto" / "fit" / "config.yml"
+    if not config.is_file():
+        raise RuntimeError(f"Training returned success without expected config: {config}")
+    rc = run(["ns-eval", "--load-config", str(config), "--output-path", str(run_dir / "eval.json")])
+    if rc:
+        return rc
+    exported = run_dir / "export"
+    rc = run(["ns-export", "gaussian-splat", "--load-config", str(config), "--output-dir", str(exported)])
+    if rc:
+        return rc
+    ply = exported / "splat.ply"
+    if not ply.is_file() or ply.stat().st_size == 0:
+        raise RuntimeError("Exporter returned success without splat.ply")
+    importer = Path(__file__).resolve().parents[1] / "import" / "ply_to_cloud.py"
+    rc = run([sys.executable, str(importer), "--ply", str(ply),
+              "--out", str(out_ply.with_suffix(".full.tres")), "--reference", "--id", out_ply.stem])
+    if rc:
+        return rc
+    rc = run([sys.executable, str(importer), "--ply", str(ply), "--out", str(out_ply.with_suffix(".tres")),
+              "--budget", str(budget), "--recipe", str(ns.parent / "recipe.json"), "--id", out_ply.stem])
+    if rc:
+        return rc
+    shutil.copy2(ply, out_ply)
+    manifest.update(status="complete", output=str(out_ply), full_cloud=str(out_ply.with_suffix(".full.tres")),
+                    ply_sha256=hashlib.sha256(out_ply.read_bytes()).hexdigest())
+    report.write_text(json.dumps(manifest, indent=2) + "\n")
     return 0
 
 
@@ -235,11 +274,19 @@ def parse_args(argv=None):
 
 def main(argv=None) -> int:
     args = parse_args(argv)
-    ns = pack(Path(args.data))
+    if args.iters < 1 or args.budget < 1:
+        raise ValueError("iters and budget must be positive")
+    data = Path(args.data).resolve()
+    recipe = json.loads((data / "recipe.json").read_text())
+    if recipe.get("color_mode") == "world-normal-encoded-raw":
+        raise ValueError("Normal captures are auxiliary data; pass them to refine_budget.py --normals, not color training")
+    if not args.pack_only and (recipe.get("source") == "builtin:cube" or recipe.get("blender_hash") == "fixture-cube"):
+        raise ValueError("Synthetic fixture images are not a trainable multi-view capture")
+    ns = pack(data)
     print(f"train_cloud: packed {ns}")
     if args.pack_only:
         return 0
-    return train(ns, Path(args.out), args.iters)
+    return train(ns, Path(args.out), args.iters, args.budget)
 
 
 def _transpose(R):

@@ -11,8 +11,12 @@ var shot_path := ""
 var shot_frames := 40
 
 
+func create_garden() -> Node:
+	return preload("res://demos/shared/garden.gd").new()
+
+
 func _ready() -> void:
-	garden = preload("res://demos/shared/garden.gd").new()
+	garden = create_garden()
 	garden.name = "Garden"
 	add_child(garden)
 	garden.build()
@@ -47,6 +51,7 @@ func _process(delta: float) -> void:
 	if objective:
 		objective.text = garden.objective()
 	if meta:
+		meta.position.y=get_viewport().get_visible_rect().size.y-36
 		var fps := Engine.get_frames_per_second()
 		var ms := (1000.0 / float(fps)) if fps > 0 else 0.0
 		var clock_s := ""
@@ -67,7 +72,7 @@ func _build_hud() -> void:
 	objective.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))
 	layer.add_child(objective)
 	meta = Label.new()
-	meta.position = Vector2(16, 1160)
+	meta.position = Vector2(16, get_viewport().get_visible_rect().size.y - 36)
 	meta.add_theme_font_size_override("font_size", 13)
 	meta.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
 	layer.add_child(meta)

@@ -1,0 +1,18 @@
+{
+  "checks": "finite geometry, positive scales, unit normals, persistent colors/opacity, loop continuity, WASD movement and idle reset",
+  "frames": 10,
+  "gaussians_per_frame": 3000,
+  "loop_step_m": 0.00609933892088399,
+  "mean_point_step_m": [
+    0.0176170152801399,
+    0.0206172041548416,
+    0.0165541389089388,
+    0.0103825126052058,
+    0.010005302074831,
+    0.0181823264944057,
+    0.0210619212646658,
+    0.0158018920196531,
+    0.0120349860337252,
+    0.00609933892088399
+  ]
+}

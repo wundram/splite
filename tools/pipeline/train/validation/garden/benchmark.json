@@ -1,0 +1,13 @@
+{
+  "frames": 240,
+  "godot": "4.7.1-stable (official)",
+  "gpu": "Apple M1 Pro (Apple7)",
+  "mean_fps": 66.0538156949921,
+  "mean_frame_ms": 15.1391708333333,
+  "moving_character": true,
+  "p95_frame_ms": 15.927,
+  "resolution": [
+    1280,
+    800
+  ]
+}

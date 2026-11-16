@@ -1,0 +1,33 @@
+{
+  "author": "Quaternius",
+  "pack": "Ultimate Stylized Nature",
+  "source_url": "https://quaternius.com/packs/ultimatestylizednature.html",
+  "download_folder": "https://drive.google.com/drive/folders/1IV3bXHzkNvuNWFHPi4KPx-G4ghuxIuT-",
+  "license": "CC0-1.0",
+  "license_note": "Bundled License.txt has stale Ultimate Platformer Pack heading; publisher nature page explicitly states CC0. Original license preserved.",
+  "files": {
+    "AllModels.blend": "6dbd16ccc5bbbf5f59306c4e49fa875552d35fd95a7bfc84f521af8fb35a60cd",
+    "License.txt": "de990ef6fc68cffd7fd1ae342c4d0c823b541b8848d8f76bca5d3339f4de6f6e",
+    "Textures/Textures/BirchTree_Bark.png": "689dd3e55523e999cf9a2271aa1e8ce1ac6a7cf3a2dc4bd796dd76860a33154b",
+    "Textures/Textures/BirchTree_Bark_Normal.png": "e30ee9c7561742523340d5657056f8392bc0f944da5145f0af7690cd1d2e6a11",
+    "Textures/Textures/BirchTree_Leaves.png": "8b674a02017d987f8ec0448bd2a52ad788d1235f91b7f00499b4ca071f8e69fe",
+    "Textures/Textures/Bush_Leaves.png": "9f662296a285ca56b1ed56e952a198b93b466ae39ab7b6ee1c1ac1bd1c46242f",
+    "Textures/Textures/Flowers.png": "23673fc87e55d8f7cbc699581a164cffec505376bd8b0b90b593dc387aa569fd",
+    "Textures/Textures/Grass.png": "facde747020acfefdc84d176dd4037282895d200a66fc20b0d9baca470f310f1",
+    "Textures/Textures/Leaves_BW.png": "1440d34b8c8d2bcf15216bfe7c3c7840b64d8b289b1c2c588528001860f6a6a2",
+    "Textures/Textures/MapleTree_Bark.png": "183645b8dc99e810e9b4c5d48a0944ccff4c2f2a9bd5f1816ab66a367cfe9a92",
+    "Textures/Textures/MapleTree_Bark_Normal.png": "2e3d97d57838d6e8203f0fab2858bada8ad1e6d6f240c0e898f8e88c110f2f5d",
+    "Textures/Textures/MapleTree_Leaves.png": "915f0836e9889e28032662c7aa0d0eb9601ba999eda042c9a4e38690786d6c7b",
+    "Textures/Textures/MapleTree_Leaves_BW.png": "6398f4fba1d7612526065f0be51d8c285f57cd3e6883bd4e464c9b7e6d1df15d",
+    "Textures/Textures/NormalTree_Bark.png": "17d8836b4eb3462c486bc0ca596d8d4dcde918c0ce0dd37eec9111b2e175be69",
+    "Textures/Textures/NormalTree_Bark_Normal.png": "8136a8d6dc18e6b055c7cb53cf42bc6bac41319e102289d8ba25ee5837fbc39b",
+    "Textures/Textures/NormalTree_Leaves.png": "9f662296a285ca56b1ed56e952a198b93b466ae39ab7b6ee1c1ac1bd1c46242f",
+    "Textures/Textures/PalmTree_Leaves.png": "6702bdeb0d5496527a049145583c98c4fdaee9fc55ea5d33a3ca2a9014a0cc74",
+    "Textures/Textures/PalmTree_Trunk.png": "504d8d7e87ad686efd267a4f6eba2b2faacc589b4a169f1904aca1d6ff5e672d",
+    "Textures/Textures/PalmTree_Trunk_Normal.png": "3d93f46d0b12b0007ce9b6b396e2c582092f1e46747d951c0e3008e48d601c78",
+    "Textures/Textures/PineTree_Bark.png": "dcda0e989e2d0f6325e2fb994589d6be9e71191dd3f888b15d22720d5527fe0f",
+    "Textures/Textures/PineTree_Bark_Normal.png": "d23c7bbce3f0052ade223d3195c24bc4e8d870b33a23c788c9bd87026fa2c79b",
+    "Textures/Textures/PineTree_Leaves.png": "8d3e0b49043639089ec68a36058c5b2ceea3fadded773adf7d9acbd006c49e1c",
+    "Textures/Textures/Rocks.png": "643d97219a00269b67f49b03123dff8d138cb4036c1a77153f917a3843332ce0"
+  }
+}

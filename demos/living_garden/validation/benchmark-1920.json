@@ -1,0 +1,51 @@
+{
+  "godot": "4.7.1-stable (official)",
+  "gpu": "Apple M1 Pro (Apple7)",
+  "hud_and_3d_portrait": true,
+  "resolution": [
+    1920,
+    1200
+  ],
+  "results": [
+    {
+      "frames": 120,
+      "mean_fps": 47.9487906915414,
+      "p95_ms": 22.523,
+      "view": "woodland"
+    },
+    {
+      "frames": 120,
+      "mean_fps": 61.8597515712377,
+      "p95_ms": 21.434,
+      "view": "pond and spell"
+    },
+    {
+      "frames": 120,
+      "mean_fps": 76.2201415535062,
+      "p95_ms": 20.876,
+      "view": "maze"
+    }
+  ],
+  "tree_stats": {
+    "garden_birch": {
+      "count": 8,
+      "max_height_m": 6.26911264657974
+    },
+    "garden_deadwood": {
+      "count": 1,
+      "max_height_m": 2.19613075256348
+    },
+    "garden_maple": {
+      "count": 11,
+      "max_height_m": 6.61792981624603
+    },
+    "garden_pine": {
+      "count": 5,
+      "max_height_m": 10.3825876712799
+    },
+    "garden_tree_sage": {
+      "count": 9,
+      "max_height_m": 4.08934426307678
+    }
+  }
+}

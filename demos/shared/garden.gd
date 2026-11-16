@@ -83,6 +83,10 @@ var pond_field: DistortionField
 var _time := 0.0
 
 
+func stair_runs() -> Array:
+	return STAIRS
+
+
 func build() -> void:
 	_add_environment()
 	world = SplatWorld.new()
@@ -90,7 +94,7 @@ func build() -> void:
 	add_child(world)
 	world.register_defs(ProcCatalog.tile_defs())
 	_paint()
-	for run in STAIRS:
+	for run in stair_runs():
 		for z in [run.bot, run.top]:
 			world.walk[Vector3i(run.level, run.x, z)] = true
 			world.walk[Vector3i(run.level + 1, run.x, z)] = true
@@ -477,7 +481,7 @@ func _can_stand(pos: Vector3, levels: Array) -> bool:
 
 
 func _run_at(tile: Vector2i) -> Variant:
-	for run in STAIRS:
+	for run in stair_runs():
 		if tile.x == run.x and (tile.y == run.bot or tile.y == run.top):
 			if player_level == run.level or player_level == run.level + 1:
 				return run

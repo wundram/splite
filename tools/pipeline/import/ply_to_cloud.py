@@ -28,20 +28,28 @@ def read_ply_vertices(path: Path) -> tuple[list[str], list[tuple]]:
     fmt = "ascii"
     names: list[str] = []
     n = 0
+    types = []
+    element = None
     for line in header_txt:
         bits = line.split()
         if not bits:
             continue
         if bits[0] == "format":
             fmt = bits[1]
-        elif bits[:2] == ["element", "vertex"]:
-            n = int(bits[2])
-        elif bits[0] == "property" and bits[1] != "list":
+        elif bits[0] == "element":
+            element = bits[1]
+            if element == "vertex":
+                n = int(bits[2])
+        elif bits[0] == "property" and element == "vertex":
+            if bits[1] == "list":
+                raise ValueError("List vertex properties are unsupported")
             names.append(bits[-1])
+            types.append(bits[1])
     if fmt.startswith("binary"):
         endian = "<" if "little" in fmt else ">"
-        rec = struct.Struct(endian + "f" * len(names))
-        body = body[1:] if body.startswith(b"\n") else body
+        formats = {"float": "f", "float32": "f", "double": "d", "float64": "d", "uchar": "B", "uint8": "B", "char": "b", "int8": "b", "short": "h", "ushort": "H", "int": "i", "uint": "I"}
+        rec = struct.Struct(endian + "".join(formats[t] for t in types))
+        body = body[2:] if body.startswith(b"\r\n") else body[1:] if body.startswith(b"\n") else body
         rows = [rec.unpack_from(body, i * rec.size) for i in range(n)]
         return names, rows
     text = body.decode("ascii", errors="replace").splitlines()
@@ -55,6 +63,8 @@ def read_ply_vertices(path: Path) -> tuple[list[str], list[tuple]]:
         rows.append(tuple(vals))
         if len(rows) == n:
             break
+    if len(rows) != n:
+        raise ValueError("Truncated PLY vertices")
     return names, rows
 
 
@@ -62,10 +72,12 @@ def farthest_point(positions: list[tuple], budget: int) -> list[int]:
     if len(positions) <= budget:
         return list(range(len(positions)))
     chosen = [0]
+    selected = {0}
     d2 = [_dist2(positions[0], p) for p in positions]
     while len(chosen) < budget:
-        nxt = max(range(len(positions)), key=lambda i: d2[i])
+        nxt = max((i for i in range(len(positions)) if i not in selected), key=lambda i: d2[i])
         chosen.append(nxt)
+        selected.add(nxt)
         pn = positions[nxt]
         for i, p in enumerate(positions):
             di = _dist2(pn, p)
@@ -79,24 +91,31 @@ def _dist2(a, b):
     return dx * dx + dy * dy + dz * dz
 
 
-def convert(names, rows, budget: int, kind: str, aabb=None):
+def convert(names, rows, budget: int, kind: str, aabb=None, reference: bool = False):
     idx = {n: i for i, n in enumerate(names)}
 
     def get(row, key, default=0.0):
         i = idx.get(key)
         return float(row[i]) if i is not None else default
 
+    required = {"x", "y", "z", "opacity", "scale_0", "scale_1", "scale_2", "f_dc_0", "f_dc_1", "f_dc_2", "rot_0", "rot_1", "rot_2", "rot_3"}
+    if not required.issubset(idx):
+        raise ValueError(f"Missing Gaussian properties: {sorted(required - idx.keys())}")
     rmax = 2.5 if kind == "volume" else 0.85
     gaussians = []
     for row in rows:
+        if not all(math.isfinite(float(v)) for v in row):
+            continue
         x, y, z = get(row, "x"), get(row, "y"), get(row, "z")
         logit = get(row, "opacity", 0.0)
-        alpha = 1.0 / (1.0 + math.exp(-logit))
+        alpha = 1.0 / (1.0 + math.exp(-max(-80, min(80, logit))))
+        if any(abs(get(row, f"scale_{i}")) > 80 for i in range(3)):
+            continue
         sx = math.exp(get(row, "scale_0", -2.0))
         sy = math.exp(get(row, "scale_1", -2.0))
         sz = math.exp(get(row, "scale_2", -2.0))
         radius = (sx * sy * sz) ** (1.0 / 3.0)
-        if alpha < 0.04 or radius < 0.005 or radius > rmax:
+        if not reference and (alpha < 0.04 or radius < 0.005 or radius > rmax):
             continue
         albedo = (
             max(0.0, min(1.0, SH_C0 * get(row, "f_dc_0") + 0.5)),
@@ -104,11 +123,15 @@ def convert(names, rows, budget: int, kind: str, aabb=None):
             max(0.0, min(1.0, SH_C0 * get(row, "f_dc_2") + 0.5)),
         )
         rot = (
-            get(row, "rot_0"),
             get(row, "rot_1"),
             get(row, "rot_2"),
             get(row, "rot_3"),
+            get(row, "rot_0"),
         )
+        norm = math.sqrt(sum(v*v for v in rot))
+        if norm < 1e-12:
+            continue
+        rot = tuple(v / norm for v in rot)
         gaussians.append({
             "p": (x, y, z),
             "r": radius,
@@ -118,7 +141,7 @@ def convert(names, rows, budget: int, kind: str, aabb=None):
             "q": rot,
         })
 
-    if aabb is not None:
+    if aabb is not None and not reference:
         (mn, mx) = aabb
         pad = [(mx[i] - mn[i]) * 0.05 for i in range(3)]
         lo = [mn[i] - pad[i] for i in range(3)]
@@ -128,7 +151,7 @@ def convert(names, rows, budget: int, kind: str, aabb=None):
             if all(lo[i] <= g["p"][i] <= hi[i] for i in range(3))
         ]
 
-    if budget > 0 and len(gaussians) > budget:
+    if not reference and budget > 0 and len(gaussians) > budget:
         keep = farthest_point([g["p"] for g in gaussians], budget)
         gaussians = [gaussians[i] for i in keep]
     return gaussians
@@ -148,8 +171,19 @@ def fill_shadow_and_aabb(gaussians):
     return tuple(lo), tuple(hi), sv
 
 
-def write_tres(path: Path, gaussians, source_id: str) -> None:
+def write_tres(path: Path, gaussians, source_id: str, shadow_vecs=None) -> None:
     lo, hi, sv = fill_shadow_and_aabb(gaussians)
+    if shadow_vecs is not None:
+        if len(shadow_vecs) != len(gaussians):
+            raise ValueError("Surface normal count must match Gaussian count")
+        sv = []
+        for normal in shadow_vecs:
+            if len(normal) != 3 or not all(math.isfinite(float(v)) for v in normal):
+                raise ValueError("Surface normals must contain three finite components")
+            length = math.sqrt(sum(float(v)**2 for v in normal))
+            if length < 1e-12:
+                raise ValueError("Surface normals must be nonzero")
+            sv.append(tuple(float(v)/length for v in normal))
     def f3(arr, key=None):
         if key:
             vals = []
@@ -219,7 +253,7 @@ def write_ply(path: Path, gaussians) -> None:
         fd = [(c - 0.5) / SH_C0 for c in g["c"]]
         logit = math.log(g["a"] / max(1.0 - g["a"], 1e-6))
         ls = [math.log(max(s, 1e-6)) for s in g["s"]]
-        q = g["q"]
+        q = (g["q"][3], *g["q"][:3])
         p = g["p"]
         lines.append(
             f"{p[0]:.6f} {p[1]:.6f} {p[2]:.6f} "
@@ -249,7 +283,7 @@ def make_canopy(n: int = 80):
             "c": (g * 0.45, g, g * 0.38),
             "a": rng.uniform(0.55, 0.88),
             "s": (r, r * 0.85, r),
-            "q": (1.0, 0.0, 0.0, 0.0),
+            "q": (0.0, 0.0, 0.0, 1.0),
         })
     return gs
 
@@ -259,12 +293,15 @@ def parse_args(argv=None):
     p.add_argument("--ply")
     p.add_argument("--out", required=True)
     p.add_argument("--budget", type=int, default=600)
+    p.add_argument("--reference", action="store_true",
+                   help="Preserve all finite valid Gaussians; bypass pruning and budget for renderer comparison")
     p.add_argument("--kind", choices=("tile", "volume"), default="volume")
     p.add_argument("--recipe", help="optional recipe.json with aabb")
+    p.add_argument("--normals", help="Optional per-Gaussian normals JSON; requires --reference to preserve ordering")
     p.add_argument("--id", default="")
     p.add_argument("--write-fixture-ply", action="store_true",
                     help="Write a hand-exported canopy PLY, then import it.")
-    p.add_argument("--license-line", default="CC0  https://polyhaven.com/")
+    p.add_argument("--license-line", default="Source license: see capture recipe / assets attribution")
     return p.parse_args(argv)
 
 
@@ -283,9 +320,14 @@ def main(argv=None) -> int:
         print("ply_to_cloud: --ply is required (or --write-fixture-ply)", file=sys.stderr)
         return 2
     names, rows = read_ply_vertices(Path(args.ply))
-    gs = convert(names, rows, args.budget, args.kind, aabb)
+    gs = convert(names, rows, args.budget, args.kind, aabb, reference=args.reference)
+    if not gs:
+        raise ValueError("No valid Gaussians remain; refusing to write an empty cloud")
     sid = args.id or Path(args.ply).stem
-    write_tres(Path(args.out), gs, sid)
+    if args.normals and not args.reference:
+        raise ValueError('--normals requires --reference so Gaussian ordering is preserved')
+    normals = json.loads(Path(args.normals).read_text()) if args.normals else None
+    write_tres(Path(args.out), gs, sid, normals)
     lo, hi, _sv = fill_shadow_and_aabb(gs)
     mean_r = sum(g["r"] for g in gs) / max(len(gs), 1)
     mean_a = sum(g["a"] for g in gs) / max(len(gs), 1)

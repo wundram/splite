@@ -1,1 +1,11 @@
 .godot/
+
+__pycache__/
+.DS_Store
+assets/captures/
+assets/training/
+assets/sources/**/*.zip
+assets/sources/**/*.blend
+assets/sources/**/*.blend1
+assets/sources/quaternius-nature/Textures/
+assets/sources/kaykit-adventurers/KayKit_Adventurers_2.0_FREE/
